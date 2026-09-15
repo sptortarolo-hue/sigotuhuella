@@ -778,7 +778,9 @@ export async function proposeMeeting(caseId, userId, { lat, lng, time, location 
 }
 
 // Confirma la reunión, cierra el caso, avisa a colaboradores y dispara la celebración completa
-export async function confirmReunion(caseId, userId, { photoData, photoMime, ownerName, ownerPhone, ownerEmail, ownerAddress } = {}) {
+// Si silent=true, cierra sin festejo: sin push a colaboradores, sin news, sin IG/FB/WA.
+export async function confirmReunion(caseId, userId, { photoData, photoMime, ownerName, ownerPhone, ownerEmail, ownerAddress, silent } = {}) {
+  const isSilent = silent === true || silent === 'true' || silent === 1 || silent === '1';
   const caseRes = await pool.query(
     `SELECT pc.*, p.name AS pet_name FROM pet_cases pc JOIN pets p ON p.id = pc.pet_id WHERE pc.id = $1`,
     [caseId]
@@ -804,7 +806,7 @@ export async function confirmReunion(caseId, userId, { photoData, photoMime, own
     await client.query(
       `INSERT INTO case_events (case_id, user_id, event_type, payload)
        VALUES ($1, $2, 'reunited', $3)`,
-      [caseId, userId, JSON.stringify({ confirmed_by: userId, photo_data: photoData || null, photo_mime: photoMime || null })]
+      [caseId, userId, JSON.stringify({ confirmed_by: userId, photo_data: photoData || null, photo_mime: photoMime || null, ...(isSilent ? { silent: true } : {}) })]
     );
     await client.query('COMMIT');
   } catch (err) {
@@ -813,6 +815,8 @@ export async function confirmReunion(caseId, userId, { photoData, photoMime, own
   } finally {
     client.release();
   }
+
+  if (isSilent) return { success: true, silent: true };
 
   // Avisar a colaboradores + followers
   try {
@@ -843,9 +847,10 @@ export async function confirmReunion(caseId, userId, { photoData, photoMime, own
   return { success: true };
 }
 
-export async function closeCase(caseId, userId, reason) {
+export async function closeCase(caseId, userId, reason, opts = {}) {
   const validReasons = ['reunited', 'deceased', 'transferred', 'adopted'];
   if (!validReasons.includes(reason)) return { error: 'Motivo de cierre inválido' };
+  const isSilent = opts === true || opts?.silent === true || opts?.silent === 'true' || opts?.silent === 1 || opts?.silent === '1';
   const caseRes = await pool.query('SELECT * FROM pet_cases WHERE id = $1', [caseId]);
   if (caseRes.rows.length === 0) return { error: 'Caso no encontrado' };
   const petCase = caseRes.rows[0];
@@ -870,7 +875,7 @@ export async function closeCase(caseId, userId, reason) {
     await client.query(
       `INSERT INTO case_events (case_id, user_id, event_type, payload)
        VALUES ($1, $2, 'case_closed', $3)`,
-      [caseId, userId, JSON.stringify({ reason, closed_by: userId })]
+      [caseId, userId, JSON.stringify({ reason, closed_by: userId, ...(isSilent ? { silent: true } : {}) })]
     );
     await client.query('COMMIT');
   } catch (err) {
@@ -879,6 +884,8 @@ export async function closeCase(caseId, userId, reason) {
   } finally {
     client.release();
   }
+
+  if (isSilent) return { success: true, silent: true };
 
   // Celebración completa + push para reunited/adopted
   if (reason === 'reunited' || reason === 'adopted') {

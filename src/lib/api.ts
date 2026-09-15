@@ -239,10 +239,10 @@ export const api = {
     shares: (id: string) => request(`/cases/${id}/shares`),
     proposeMeeting: (id: string, data: { lat?: number; lng?: number; time: string; location?: string }) =>
       request(`/cases/${id}/meeting`, { method: 'POST', body: JSON.stringify(data) }),
-    reunite: (id: string, data?: { photo_data?: string | null; photo_mime?: string | null; owner_name?: string | null; owner_phone?: string | null; owner_email?: string | null; owner_address?: string | null }) =>
+    reunite: (id: string, data?: { photo_data?: string | null; photo_mime?: string | null; owner_name?: string | null; owner_phone?: string | null; owner_email?: string | null; owner_address?: string | null; silent?: boolean }) =>
       request(`/cases/${id}/reunite`, { method: 'POST', body: JSON.stringify(data || {}) }),
-    close: (id: string, reason: string) =>
-      request(`/cases/${id}/close`, { method: 'POST', body: JSON.stringify({ reason }) }),
+    close: (id: string, reason: string, opts?: { silent?: boolean } | boolean) =>
+      request(`/cases/${id}/close`, { method: 'POST', body: JSON.stringify({ reason, silent: typeof opts === 'boolean' ? opts : !!opts?.silent }) }),
     follow: (id: string) => request(`/cases/${id}/follow`, { method: 'POST' }),
     unfollow: (id: string) => request(`/cases/${id}/follow`, { method: 'DELETE' }),
     followed: () => request('/cases/followed'),

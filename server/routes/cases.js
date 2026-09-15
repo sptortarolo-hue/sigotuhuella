@@ -371,7 +371,7 @@ router.post('/:id/meeting', requireAuth, async (req, res) => {
 
 // POST /api/cases/:id/reunite — confirmar reunión + foto opcional (reporter, dueño o admin)
 router.post('/:id/reunite', requireAuth, async (req, res) => {
-  const { photo_data, photo_mime, owner_name, owner_phone, owner_email, owner_address } = req.body;
+  const { photo_data, photo_mime, owner_name, owner_phone, owner_email, owner_address, silent } = req.body;
   try {
     const caseRes = await pool.query('SELECT * FROM pet_cases WHERE id = $1', [req.params.id]);
     if (caseRes.rows.length === 0) return res.status(404).json({ error: 'Caso no encontrado' });
@@ -387,6 +387,7 @@ router.post('/:id/reunite', requireAuth, async (req, res) => {
       ownerPhone: owner_phone,
       ownerEmail: owner_email,
       ownerAddress: owner_address,
+      silent,
     });
     if (result.error) return res.status(400).json({ error: result.error });
     res.json(result);
@@ -398,7 +399,7 @@ router.post('/:id/reunite', requireAuth, async (req, res) => {
 
 // POST /api/cases/:id/close — cerrar caso con motivo (reporter, dueño o admin)
 router.post('/:id/close', requireAuth, async (req, res) => {
-  const { reason } = req.body;
+  const { reason, silent } = req.body;
   if (!reason) return res.status(400).json({ error: 'Se requiere un motivo de cierre' });
   try {
     const caseRes = await pool.query('SELECT * FROM pet_cases WHERE id = $1', [req.params.id]);
@@ -408,7 +409,7 @@ router.post('/:id/close', requireAuth, async (req, res) => {
       return res.status(403).json({ error: 'No autorizado' });
     }
     if (petCase.status === 'closed') return res.status(400).json({ error: 'El caso ya está cerrado' });
-    const result = await closeCase(req.params.id, req.user.id, reason);
+    const result = await closeCase(req.params.id, req.user.id, reason, { silent });
     if (result.error) return res.status(400).json({ error: result.error });
     res.json(result);
   } catch (err) {

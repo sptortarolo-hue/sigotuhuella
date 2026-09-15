@@ -21,6 +21,7 @@ export default function ReunionModal({ petId, petName, isAdoption, skipStatusCha
   const [ownerPhoneValid, setOwnerPhoneValid] = useState(true);
   const [ownerEmail, setOwnerEmail] = useState('');
   const [ownerAddress, setOwnerAddress] = useState('');
+  const [publishMode, setPublishMode] = useState<'publish' | 'silent'>('publish');
 
   useEffect(() => {
     (async () => {
@@ -52,6 +53,7 @@ export default function ReunionModal({ petId, petName, isAdoption, skipStatusCha
         owner_phone: ownerPhone || null,
         owner_email: ownerEmail || null,
         owner_address: ownerAddress || null,
+        silent: publishMode === 'silent',
       };
       if (!skipStatusChange) {
         payload.status = isAdoption ? PetStatus.ADOPTED : PetStatus.REUNITED;
@@ -149,6 +151,30 @@ export default function ReunionModal({ petId, petName, isAdoption, skipStatusCha
                   className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none text-sm focus:border-brand-primary transition-colors"
                 />
               </div>
+
+              {!skipStatusChange && (
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 block">¿Publicar o en silencio?</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setPublishMode('publish')}
+                      className={`p-3 rounded-xl border text-left transition-colors ${publishMode === 'publish' ? 'border-emerald-500 bg-emerald-50' : 'border-brand-accent hover:border-emerald-400'}`}
+                    >
+                      <p className="text-sm font-bold text-gray-700">📣 Con publicación</p>
+                      <p className="text-xs text-gray-500">Festejo, redes y avisos</p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPublishMode('silent')}
+                      className={`p-3 rounded-xl border text-left transition-colors ${publishMode === 'silent' ? 'border-emerald-500 bg-emerald-50' : 'border-brand-accent hover:border-emerald-400'}`}
+                    >
+                      <p className="text-sm font-bold text-gray-700">🤫 En silencio</p>
+                      <p className="text-xs text-gray-500">Solo cierra, sin publicar</p>
+                    </button>
+                  </div>
+                </div>
+              )}
             </>
           )}
         </div>

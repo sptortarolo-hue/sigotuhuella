@@ -76,14 +76,15 @@ function eventLabel(type: string, payload: any) {
     case 'sighting_reported': return 'Nuevo avistamiento';
     case 'search_area_logged': return 'Zona de búsqueda registrada';
     case 'meeting_arranged': return 'Punto de encuentro propuesto';
-    case 'reunited': return 'Reencontrada';
+    case 'reunited': return payload?.silent ? 'Reencontrada (en silencio)' : 'Reencontrada';
     case 'reunion_announced': {
       if (payload?.reason === 'adopted') return '¡Fue adoptada!';
       return '¡Volvió a casa!';
     }
     case 'case_closed': {
       const reasonMap: any = { reunited: 'reunida', adopted: 'adoptada', deceased: 'fallecida', transferred: 'traspasada', grouped: 'unificado en otro caso' };
-      return `Caso cerrado (${reasonMap[payload?.reason] || payload?.reason || 'motivo'})`;
+      const base = `Caso cerrado (${reasonMap[payload?.reason] || payload?.reason || 'motivo'})`;
+      return payload?.silent ? `${base} · en silencio` : base;
     }
     case 'status_changed': return 'Estado del caso actualizado';
     case 'case_renewed': return 'Publicación renovada';

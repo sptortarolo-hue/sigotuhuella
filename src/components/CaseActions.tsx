@@ -123,6 +123,34 @@ function MeetingModal({ caseId, onClose, onDone }: { caseId: string; onClose: ()
   );
 }
 
+function PublishChoice({ value, onChange }: { value: 'publish' | 'silent'; onChange: (v: 'publish' | 'silent') => void }) {
+  return (
+    <div>
+      <label className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2 block">¿Publicar o en silencio?</label>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <button
+          type="button"
+          onClick={() => onChange('publish')}
+          className={`p-3 rounded-xl border text-left transition-colors ${value === 'publish' ? 'border-brand-primary bg-brand-primary/10' : 'border-brand-accent hover:border-brand-primary'}`}
+        >
+          <span className="text-lg">📣</span>
+          <p className="text-sm font-bold text-gray-700 mt-1">Con publicación</p>
+          <p className="text-xs text-gray-500">Festejo, redes, WhatsApp y aviso a colaboradores</p>
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange('silent')}
+          className={`p-3 rounded-xl border text-left transition-colors ${value === 'silent' ? 'border-brand-primary bg-brand-primary/10' : 'border-brand-accent hover:border-brand-primary'}`}
+        >
+          <span className="text-lg">🤫</span>
+          <p className="text-sm font-bold text-gray-700 mt-1">En silencio</p>
+          <p className="text-xs text-gray-500">Solo se cierra, sin publicar ni avisar</p>
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function ReuniteModal({ caseId, onClose, onDone }: { caseId: string; onClose: () => void; onDone: () => void }) {
   const [photo, setPhoto] = useState<string | null>(null);
   const [photoMime, setPhotoMime] = useState('image/jpeg');
@@ -132,6 +160,7 @@ function ReuniteModal({ caseId, onClose, onDone }: { caseId: string; onClose: ()
   const [ownerPhoneValid, setOwnerPhoneValid] = useState(true);
   const [ownerEmail, setOwnerEmail] = useState('');
   const [ownerAddress, setOwnerAddress] = useState('');
+  const [publishMode, setPublishMode] = useState<'publish' | 'silent'>('publish');
 
   const handlePhoto = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -151,7 +180,10 @@ function ReuniteModal({ caseId, onClose, onDone }: { caseId: string; onClose: ()
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!confirm('¿Confirmás que la mascota volvió a casa? Se cerrará el caso y se avisará a quienes colaboraron.')) return;
+    const silent = publishMode === 'silent';
+    if (!confirm(silent
+      ? '¿Confirmás que la mascota volvió a casa? Se cerrará el caso EN SILENCIO, sin publicar ni avisar.'
+      : '¿Confirmás que la mascota volvió a casa? Se cerrará el caso y se avisará a quienes colaboraron.')) return;
     setSaving(true);
     try {
       await api.cases.reunite(caseId, {
@@ -161,6 +193,7 @@ function ReuniteModal({ caseId, onClose, onDone }: { caseId: string; onClose: ()
         owner_phone: ownerPhone || null,
         owner_email: ownerEmail || null,
         owner_address: ownerAddress || null,
+        silent,
       });
       onDone();
     } catch (err: any) {
@@ -244,6 +277,8 @@ function ReuniteModal({ caseId, onClose, onDone }: { caseId: string; onClose: ()
           />
         </div>
 
+        <PublishChoice value={publishMode} onChange={setPublishMode} />
+
         <button type="submit" disabled={saving} className="w-full px-6 py-3 bg-emerald-500 text-white rounded-xl font-bold text-sm hover:bg-emerald-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
           {saving && <Loader2 className="w-4 h-4 animate-spin" />} Confirmar reunión
         </button>
@@ -254,15 +289,26 @@ function ReuniteModal({ caseId, onClose, onDone }: { caseId: string; onClose: ()
 
 function CloseModal({ caseId, onClose, onDone }: { caseId: string; onClose: () => void; onDone: () => void }) {
   const [reason, setReason] = useState<string>('');
+  const [publishMode, setPublishMode] = useState<'publish' | 'silent'>('publish');
   const [saving, setSaving] = useState(false);
+
+  const pickReason = (value: string) => {
+    setReason(value);
+    // Default sensato: reunited/adopted publican, deceased/transferred en silencio (comportamiento actual).
+    // El usuario puede cambiarlo con el selector de abajo.
+    setPublishMode(value === 'deceased' || value === 'transferred' ? 'silent' : 'publish');
+  };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (!reason) { alert('Elegí el motivo de cierre'); return; }
-    if (!confirm(`¿Cerrar el caso con motivo "${CLOSE_REASONS.find(r => r.value === reason)?.label}"?`)) return;
+    const silent = publishMode === 'silent';
+    if (!confirm(silent
+      ? `¿Cerrar el caso con motivo "${CLOSE_REASONS.find(r => r.value === reason)?.label}" EN SILENCIO, sin publicar ni avisar?`
+      : `¿Cerrar el caso con motivo "${CLOSE_REASONS.find(r => r.value === reason)?.label}" con publicación?`)) return;
     setSaving(true);
     try {
-      await api.cases.close(caseId, reason);
+      await api.cases.close(caseId, reason, { silent });
       onDone();
     } catch (err: any) {
       alert(err.message || 'Error al cerrar el caso');
@@ -279,7 +325,7 @@ function CloseModal({ caseId, onClose, onDone }: { caseId: string; onClose: () =
             <button
               key={r.value}
               type="button"
-              onClick={() => setReason(r.value)}
+              onClick={() => pickReason(r.value)}
               className={`p-3 rounded-xl border text-left transition-colors ${reason === r.value ? 'border-brand-primary bg-brand-primary/10' : 'border-brand-accent hover:border-brand-primary'}`}
             >
               <span className="text-lg">{r.emoji}</span>
@@ -287,6 +333,7 @@ function CloseModal({ caseId, onClose, onDone }: { caseId: string; onClose: () =
             </button>
           ))}
         </div>
+        {reason && <PublishChoice value={publishMode} onChange={setPublishMode} />}
         <button type="submit" disabled={saving || !reason} className="w-full px-6 py-3 bg-gray-200 text-gray-700 rounded-xl font-bold text-sm hover:bg-gray-300 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
           {saving && <Loader2 className="w-4 h-4 animate-spin" />} Cerrar caso
         </button>

@@ -584,19 +584,26 @@ router.put('/:id', requireAuth, async (req, res) => {
       }
     }
     // Status change → celebración completa (news, IG/FB, broadcast, badges, etc.)
+    // silent=true: cambia el estado y sincroniza el caso sin festejo ni publicaciones.
     if (req.body.status && req.body.status !== pet.status) {
-      await celebrateStatusChange({
-        petId,
-        userId: req.user.id,
-        fromStatus: pet.status,
-        toStatus: req.body.status,
-        ownerFields: {
-          owner_name: req.body.owner_name,
-          owner_phone: req.body.owner_phone,
-          owner_email: req.body.owner_email,
-          owner_address: req.body.owner_address,
-        },
-      });
+      const isSilent6637 = req.body.silent === true || req.body.silent === 'true' || req.body.silent === 1 || req.body.silent === '1';
+      if (!isSilent6637) {
+        await celebrateStatusChange({
+          petId,
+          userId: req.user.id,
+          fromStatus: pet.status,
+          toStatus: req.body.status,
+          ownerFields: {
+            owner_name: req.body.owner_name,
+            owner_phone: req.body.owner_phone,
+            owner_email: req.body.owner_email,
+            owner_address: req.body.owner_address,
+          },
+        });
+      } else {
+        const { syncCaseStatus } = await import('../services/caseService.js');
+        try { await syncCaseStatus(petId, req.body.status, pet.status); } catch (e) { console.error('silent status syncCaseStatus error:', e.message); }
+      }
     }
     // Return pet with images
     const updated = await pool.query(
