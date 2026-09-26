@@ -462,6 +462,8 @@ export const api = {
     update: (id: string, data: any) => request(`/my-pets/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) => request(`/my-pets/${id}`, { method: 'DELETE' }),
     requestQr: (id: string) => request(`/my-pets/${id}/request-qr`, { method: 'POST' }),
+    requestReplacement: (id: string, reason: 'perdida' | 'deteriorada') =>
+      request(`/my-pets/${id}/request-replacement`, { method: 'POST', body: JSON.stringify({ reason }) }),
     vetShare: (id: string, enabled: boolean) => request(`/my-pets/${id}/vet-share`, { method: 'POST', body: JSON.stringify({ enabled }) }),
     featured: () => request('/my-pets/featured'),
     sharedWithMe: () => request('/my-pets/shared/with-me'),
@@ -491,6 +493,25 @@ export const api = {
     batch: (count: number) => request('/qr/batch', { method: 'POST', body: JSON.stringify({ count }) }),
     unassigned: () => request('/qr/unassigned'),
     requests: () => request('/qr/requests'),
+    replacementRequests: () => request('/qr/replacement-requests'),
+    replace: (myPetId: string, newQrId: string) => request('/qr/replace', { method: 'POST', body: JSON.stringify({ my_pet_id: myPetId, new_qr_id: newQrId }) }),
+    singlePdf: (qrId: string, code: string) => {
+      const token = getToken();
+      return fetch(apiUrl(`/api/qr/${qrId}/pdf`), {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      }).then(async res => {
+        if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Error al descargar PDF'); }
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `chapita-${code}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      });
+    },
     assign: (qrId: string, myPetId: string) => request('/qr/assign', { method: 'POST', body: JSON.stringify({ qr_id: qrId, my_pet_id: myPetId }) }),
     reassign: (qrId: string, newMyPetId: string) => request('/qr/reassign', { method: 'POST', body: JSON.stringify({ qr_id: qrId, new_my_pet_id: newMyPetId }) }),
     petsAvailable: () => request('/qr/pets-available'),

@@ -376,7 +376,7 @@ app.get('/mascota/:token', async (req, res) => {
     const result = await pool.query(
       `SELECT mp.name, mp.species, mp.breed, mp.bio, mp.avatar_image IS NOT NULL as has_avatar, qi.code
        FROM qr_identifiers qi JOIN my_pets mp ON mp.id = qi.my_pet_id
-       WHERE qi.share_token = $1`,
+       WHERE qi.share_token = $1 AND COALESCE(qi.retired, FALSE) = FALSE`,
       [req.params.token]
     );
     const protocol = req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'https';
@@ -391,7 +391,7 @@ app.get('/mascota/:token', async (req, res) => {
       description = pet.bio ? pet.bio.substring(0, 160) : `${pet.name} — Identificado con QR ${pet.code}`;
     } else if (/^\d+$/.test(req.params.token)) {
       const oldResult = await pool.query(
-        'SELECT qi.share_token, mp.name, mp.species, mp.breed, mp.bio, mp.avatar_image IS NOT NULL as has_avatar, qi.code FROM my_pets mp LEFT JOIN qr_identifiers qi ON qi.my_pet_id = mp.id WHERE mp.id = $1 AND qi.share_token IS NOT NULL',
+        'SELECT qi.share_token, mp.name, mp.species, mp.breed, mp.bio, mp.avatar_image IS NOT NULL as has_avatar, qi.code FROM my_pets mp LEFT JOIN qr_identifiers qi ON qi.my_pet_id = mp.id AND COALESCE(qi.retired, FALSE) = FALSE WHERE mp.id = $1 AND qi.share_token IS NOT NULL',
         [req.params.token]
       );
       if (oldResult.rows.length > 0) {

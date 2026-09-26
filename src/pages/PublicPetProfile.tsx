@@ -188,6 +188,23 @@ export default function PublicPetProfile() {
       return <Navigate to={`/mascota/${data.resolved_share_token}`} replace />;
     }
     if (data?.exists) {
+      if (data?.retired) {
+        return (
+          <div className="min-h-screen flex flex-col items-center justify-center bg-brand-bg px-4 text-center">
+            <div className="w-20 h-20 bg-amber-100 rounded-3xl flex items-center justify-center mb-6">
+              <PawPrint className="w-10 h-10 text-amber-600" />
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-brand-primary mb-3">Chapita dada de baja</h1>
+            <p className="text-gray-500 mb-8 max-w-md">
+              Esta chapita fue reemplazada por pérdida o deterioro y ya no está en uso.
+              Si encontraste esta chapita, podés avisar al equipo por WhatsApp al 221 202 5190.
+            </p>
+            <Link to="/" className="px-6 py-3 bg-brand-primary text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all">
+              Ir al inicio
+            </Link>
+          </div>
+        );
+      }
       return <Navigate to={`/solicitar-chapita?qr=${shareToken}`} replace />;
     }
     return (

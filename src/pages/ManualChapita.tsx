@@ -298,6 +298,10 @@ export default function ManualChapita() {
                 Cuando la chapita ya está asignada, no hace falta volver a solicitarla: el código queda
                 asociado a tu mascota para siempre, y podés reutilizarlo aunque cambies de teléfono o de cuenta.
               </p>
+              <p className="mt-2">
+                ¿Se perdió o se deterioró? Desde la ficha de tu mascota pedí <strong>Reponer chapita</strong>
+                indicando el motivo: te asignamos una nueva y la anterior queda dada de baja automáticamente.
+              </p>
             </ManualCallout>
             <ManualCta to="/mi-mascota" icon={PawPrint}>Ver mis mascotas</ManualCta>
           </ManualStep>

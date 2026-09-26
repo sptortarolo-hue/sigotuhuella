@@ -276,6 +276,8 @@ export default function Admin() {
   const [reassignTyped, setReassignTyped] = useState('');
   const [reassignStep, setReassignStep] = useState<'select' | 'confirm'>('select');
   const [reassignLoading, setReassignLoading] = useState(false);
+  const [qrReplacements, setQrReplacements] = useState<any[]>([]);
+  const [replaceLoading, setReplaceLoading] = useState<string | null>(null);
   const [reactivateToken, setReactivateToken] = useState('');
   const [reactivateCode, setReactivateCode] = useState('');
   const [reactivateLoading, setReactivateLoading] = useState(false);
@@ -338,14 +340,16 @@ export default function Admin() {
   const fetchQrData = async (page?: number) => {
     try {
       const p = page || qrAssignedPage;
-      const [unassigned, requests, assigned, waChapita] = await Promise.all([
+      const [unassigned, requests, replacements, assigned, waChapita] = await Promise.all([
         api.qr.unassigned(),
         api.qr.requests(),
+        api.qr.replacementRequests().catch(() => ({ requests: [] })),
         api.qr.assigned(p, 50),
         api.whatsapp.chapitaRequests().catch(() => []),
       ]);
       setQrUnassigned(unassigned.identifiers || []);
       setQrRequests(requests.requests || []);
+      setQrReplacements((replacements as any).requests || []);
       setQrAssigned(assigned.assigned || []);
       setQrAssignedTotal(assigned.total || 0);
       setQrAssignedPages(assigned.pages || 1);
@@ -376,6 +380,27 @@ export default function Admin() {
       alert(e.message || 'Error al asignar QR');
     } finally {
       setQrAssignLoading(null);
+    }
+  };
+
+  const handleQrReplace = async (newQrId: string, myPetId: string) => {
+    try {
+      setReplaceLoading(myPetId);
+      const result: any = await api.qr.replace(myPetId, newQrId);
+      await fetchQrData();
+      alert(`Chapita repuesta: ${result.old_code} → ${result.new_code}. La anterior quedó dada de baja.`);
+    } catch (e: any) {
+      alert(e.message || 'Error al reponer chapita');
+    } finally {
+      setReplaceLoading(null);
+    }
+  };
+
+  const handleSinglePdf = async (qrId: string, code: string) => {
+    try {
+      await api.qr.singlePdf(qrId, code);
+    } catch (e: any) {
+      alert(e.message || 'Error al descargar PDF');
     }
   };
 
@@ -1318,7 +1343,7 @@ export default function Admin() {
                     </div>
                   ) : selectedMyPetData ? (
                     <div className="bg-white rounded-[2.5rem] border border-brand-accent overflow-y-auto max-h-[calc(100vh-280px)]">
-                      <AdminMyPetDetail pet={selectedMyPetData} onClose={() => setSelectedMyPetData(null)} onEdit={openEditMyPet} onDelete={handleDeleteMyPet} />
+                      <AdminMyPetDetail pet={selectedMyPetData} onClose={() => setSelectedMyPetData(null)} onEdit={openEditMyPet} onDelete={handleDeleteMyPet} onReplaced={() => selectedMyPetData && handleOpenMyPetById(selectedMyPetData.id)} />
                     </div>
                   ) : (
                     <div className="bg-white rounded-[2.5rem] border-2 border-dashed border-brand-accent h-full flex items-center justify-center">
@@ -1425,7 +1450,7 @@ export default function Admin() {
                   ) : selectedPetData ? (
                     <PetDetailPanel data={selectedPetData} isMobile onClose={() => { setMobilePetView('list'); setSelectedPetData(null); setSelectedPetId(null); }} pets={pets} users={userList} onRefresh={() => fetchPetRelations(selectedPetData.pet.id)} onOpenMyPet={handleOpenMyPetById} />
                   ) : selectedMyPetData ? (
-                    <AdminMyPetDetail pet={selectedMyPetData} isMobile onClose={() => setSelectedMyPetData(null)} onEdit={openEditMyPet} onDelete={handleDeleteMyPet} />
+                    <AdminMyPetDetail pet={selectedMyPetData} isMobile onClose={() => setSelectedMyPetData(null)} onEdit={openEditMyPet} onDelete={handleDeleteMyPet} onReplaced={() => selectedMyPetData && handleOpenMyPetById(selectedMyPetData.id)} />
                   ) : (
                     <div className="text-center py-12 text-gray-400">No se pudo cargar la info</div>
                   )}
@@ -1862,7 +1887,7 @@ export default function Admin() {
                     </div>
                   ) : selectedMyPetData ? (
                     <div className="bg-white rounded-[2.5rem] border border-brand-accent overflow-y-auto max-h-[calc(100vh-280px)]">
-                      <AdminMyPetDetail pet={selectedMyPetData} onClose={() => setSelectedMyPetData(null)} onEdit={openEditMyPet} onDelete={handleDeleteMyPet} />
+                      <AdminMyPetDetail pet={selectedMyPetData} onClose={() => setSelectedMyPetData(null)} onEdit={openEditMyPet} onDelete={handleDeleteMyPet} onReplaced={() => selectedMyPetData && handleOpenMyPetById(selectedMyPetData.id)} />
                     </div>
                   ) : (
                     <div className="bg-white rounded-[2.5rem] border-2 border-dashed border-brand-accent h-full flex items-center justify-center">
@@ -1982,7 +2007,7 @@ export default function Admin() {
                       ← Volver al usuario
                     </button>
                     <div className="bg-white rounded-[2.5rem] border border-brand-accent">
-                      <AdminMyPetDetail pet={selectedMyPetData} isMobile onEdit={openEditMyPet} onDelete={handleDeleteMyPet} />
+                      <AdminMyPetDetail pet={selectedMyPetData} isMobile onEdit={openEditMyPet} onDelete={handleDeleteMyPet} onReplaced={() => selectedMyPetData && handleOpenMyPetById(selectedMyPetData.id)} />
                     </div>
                   </div>
                 )}
@@ -2723,6 +2748,56 @@ export default function Admin() {
     </div>
 
     {/* Notify Modal */}
+    {qrReplacements.length > 0 && (
+      <div className="bg-white rounded-[2.5rem] border border-amber-300 p-6 sm:p-8">
+        <h3 className="text-lg font-bold text-brand-primary mb-1">Reposiciones solicitadas ({qrReplacements.length})</h3>
+        <p className="text-xs text-gray-400 mb-4">Pérdida o deterioro. Al reponer, la chapita anterior queda dada de baja y deja de funcionar.</p>
+        <div className="space-y-3">
+          {qrReplacements.map((r: any) => (
+            <div key={r.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 bg-amber-50/50 rounded-2xl border border-amber-100">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-gray-800">
+                  {r.name}
+                  <span className="font-normal text-gray-400 text-xs ml-1">
+                    ({r.species === 'dog' ? 'Perro' : r.species === 'cat' ? 'Gato' : r.species}{r.breed ? ` · ${r.breed}` : ''})
+                  </span>
+                  <span className={`ml-2 text-[10px] font-bold px-2 py-0.5 rounded-full ${r.qr_replacement_reason === 'deteriorada' ? 'bg-orange-100 text-orange-700' : 'bg-red-50 text-red-600'}`}>
+                    {r.qr_replacement_reason === 'deteriorada' ? 'Deterioro' : 'Pérdida'}
+                  </span>
+                </p>
+                <p className="text-xs text-gray-400">
+                  {r.display_name || '—'}{r.email ? ` · ${r.email}` : ''}
+                  {r.current_code ? <span className="font-mono ml-2">actual: {r.current_code}</span> : null}
+                  <span className="ml-2 text-gray-300">{r.qr_replacement_requested_at ? formatDate(r.qr_replacement_requested_at) : ''}</span>
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <select
+                  onChange={async (e) => {
+                    if (e.target.value && window.confirm(`Reponer chapita de ${r.name} (${r.current_code || 'sin código'}) con el código seleccionado? La anterior quedará dada de baja.`)) {
+                      await handleQrReplace(e.target.value, r.id);
+                    }
+                    e.target.value = '';
+                  }}
+                  disabled={replaceLoading === r.id}
+                  className="px-3 py-2 bg-white rounded-xl border border-amber-300 text-xs outline-none disabled:opacity-50"
+                  defaultValue=""
+                  title="Asignar chapita nueva del pool y dar de baja la anterior"
+                >
+                  <option value="" disabled>Reponer con…</option>
+                  {qrUnassigned.map((qr: any) => (
+                    <option key={qr.id} value={qr.id}>{qr.code}</option>
+                  ))}
+                </select>
+                {replaceLoading === r.id && <Loader2 className="w-4 h-4 animate-spin text-brand-primary" />}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+
+    {/* Notify Modal */}
     <AnimatePresence>
       {notifyModal && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" onClick={() => setNotifyModal(null)}>
@@ -2892,6 +2967,13 @@ export default function Admin() {
                         ) : (
                           'Notificar'
                         )}
+                      </button>
+                      <button
+                        onClick={() => handleSinglePdf(item.id, item.code)}
+                        className="px-3 py-1 text-xs font-bold rounded-full border border-brand-accent hover:bg-brand-primary hover:text-white transition-all"
+                        title="Descargar chapita en formato de impresión"
+                      >
+                        PDF
                       </button>
                       <button
                         onClick={() => handleOpenReassign(item)}

@@ -49,7 +49,7 @@ router.post('/return/:token', requireAuth, async (req, res) => {
 
     if (assignment.qr_id) {
       await client.query(
-        'UPDATE qr_identifiers SET my_pet_id = NULL, assigned_at = NULL WHERE id = $1',
+        'UPDATE qr_identifiers SET my_pet_id = NULL, assigned_at = NULL WHERE id = $1 AND COALESCE(retired, FALSE) = FALSE',
         [assignment.qr_id]
       );
     }
@@ -208,7 +208,7 @@ router.post('/confirm/:token', requireAuth, async (req, res) => {
     } else if (assignment.qr_id) {
       // Sin cuenta: desvincular el QR del dueño para que muestre al adoptante
       await client.query(
-        'UPDATE qr_identifiers SET my_pet_id = NULL, assigned_at = NULL WHERE id = $1',
+        'UPDATE qr_identifiers SET my_pet_id = NULL, assigned_at = NULL WHERE id = $1 AND COALESCE(retired, FALSE) = FALSE',
         [assignment.qr_id]
       );
     }

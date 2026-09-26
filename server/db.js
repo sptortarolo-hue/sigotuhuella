@@ -272,6 +272,9 @@ CREATE TABLE IF NOT EXISTS qr_identifiers (
   assigned_at TIMESTAMP,
   notified_at TIMESTAMP,
   notification_status VARCHAR(20) DEFAULT 'pending',
+  retired BOOLEAN DEFAULT FALSE,
+  retired_reason VARCHAR(20),
+  retired_at TIMESTAMP,
   created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -2134,6 +2137,19 @@ export async function initDb() {
     await migrate(client, `
       CREATE INDEX IF NOT EXISTS idx_agrupaciones_coordinator ON agrupaciones(coordinator_user_id, is_active);
     `, 'idx_agrupaciones_coordinator');
+
+    // Reposición de chapita por pérdida/deterioro: baja lógica de la chapita
+    // anterior (retired) + pedido de reposición en la mascota.
+    await migrate(client, `
+      ALTER TABLE qr_identifiers ADD COLUMN IF NOT EXISTS retired BOOLEAN DEFAULT FALSE;
+      ALTER TABLE qr_identifiers ADD COLUMN IF NOT EXISTS retired_reason VARCHAR(20);
+      ALTER TABLE qr_identifiers ADD COLUMN IF NOT EXISTS retired_at TIMESTAMP;
+      ALTER TABLE my_pets ADD COLUMN IF NOT EXISTS qr_replacement_requested BOOLEAN DEFAULT FALSE;
+      ALTER TABLE my_pets ADD COLUMN IF NOT EXISTS qr_replacement_reason VARCHAR(20);
+      ALTER TABLE my_pets ADD COLUMN IF NOT EXISTS qr_replacement_requested_at TIMESTAMP;
+      CREATE INDEX IF NOT EXISTS idx_qr_identifiers_retired ON qr_identifiers(retired) WHERE retired = TRUE;
+      CREATE INDEX IF NOT EXISTS idx_my_pets_replacement ON my_pets(qr_replacement_requested) WHERE qr_replacement_requested = TRUE;
+    `, 'qr_chapita_replacement');
 
     console.log('Database migrations complete');
   } finally {

@@ -125,7 +125,7 @@ router.get('/:id', requireAuth, async (req, res) => {
 
     const result = await pool.query(
       `SELECT mp.*,
-        CASE WHEN qi.id IS NOT NULL THEN json_build_object('code', qi.code, 'share_token', qi.share_token) ELSE NULL END as qr_data,
+        CASE WHEN qi.id IS NOT NULL THEN json_build_object('id', qi.id, 'code', qi.code, 'share_token', qi.share_token) ELSE NULL END as qr_data,
         EXISTS(SELECT 1 FROM adoption_assignments aa JOIN pets p ON p.id = aa.pet_id
                WHERE p.my_pet_id = mp.id AND aa.status = 'pending_adopter') as has_pending_adoption
        FROM my_pets mp
@@ -353,9 +353,10 @@ router.delete('/:id', requireAuth, async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    // Liberar la chapita QR asignada a esta mascota (vuelve al pool)
+    // Liberar la chapita QR asignada a esta mascota (vuelve al pool).
+    // Las chapitas dadas de baja por reposición (retired) no se tocan.
     await client.query(
-      `UPDATE qr_identifiers SET my_pet_id = NULL, assigned_at = NULL, notification_status = 'pending', notified_at = NULL WHERE my_pet_id = $1`,
+      `UPDATE qr_identifiers SET my_pet_id = NULL, assigned_at = NULL, notification_status = 'pending', notified_at = NULL WHERE my_pet_id = $1 AND COALESCE(retired, FALSE) = FALSE`,
       [req.params.id]
     );
     // Desvincular la ficha pública antes de borrar (evita error de FK pets.my_pet_id)
@@ -604,6 +605,55 @@ router.post('/:id/request-qr', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('request-qr error:', err);
     res.status(500).json({ error: 'Error al solicitar QR' });
+  }
+});
+
+// Solicitar reposición de chapita por pérdida o deterioro (dueño).
+// La mascota conserva su chapita actual hasta que el admin asigna la nueva
+// con POST /qr/replace (ahí se da de baja la anterior).
+router.post('/:id/request-replacement', requireAuth, async (req, res) => {
+  try {
+    const { reason } = req.body;
+    if (!['perdida', 'deteriorada'].includes(reason)) {
+      return res.status(400).json({ error: 'Motivo inválido (perdida o deteriorada)' });
+    }
+    const petResult = await pool.query(
+      `SELECT mp.*, u.role as owner_role,
+              u.display_name as owner_name, u.email as owner_email, u.phone as owner_phone,
+              u.notification_preference as owner_notification_preference
+       FROM my_pets mp JOIN users u ON u.id = mp.user_id
+       WHERE mp.id = $1 AND (mp.user_id = $2 OR $3 = true)`,
+      [req.params.id, req.user.id, req.user.role === 'admin']
+    );
+    if (petResult.rows.length === 0) return res.status(404).json({ error: 'Mascota no encontrada' });
+    if (!petResult.rows[0].qr_id) return res.status(400).json({ error: 'Esta mascota no tiene chapita asignada' });
+    if (petResult.rows[0].qr_replacement_requested) return res.status(400).json({ error: 'Ya hay una reposición en curso para esta mascota' });
+
+    await pool.query(
+      'UPDATE my_pets SET qr_replacement_requested = true, qr_replacement_reason = $1, qr_replacement_requested_at = NOW() WHERE id = $2',
+      [reason, req.params.id]
+    );
+
+    const pet = petResult.rows[0];
+    const userName = pet.owner_name || 'Usuario';
+    const reasonLabel = reason === 'perdida' ? 'pérdida' : 'deterioro';
+
+    sendPushToAdmins({
+      title: 'Reposición de chapita QR',
+      body: `${userName} pide reposición por ${reasonLabel} para ${pet.name}`,
+      tag: `qr-replace-${pet.id}`,
+    }).catch(() => {});
+
+    sendAdminNotificationEmail(
+      'Nueva solicitud de reposición de chapita',
+      `<p><strong>${userName}</strong> solicitó reposición de chapita por <strong>${reasonLabel}</strong> para <strong>${pet.name}</strong> (${pet.species}${pet.breed ? ' - ' + pet.breed : ''}).</p>
+       <p><a href="https://sigotuhuella.com.ar/admin" style="background:#5A5A40;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;display:inline-block;">Ir al panel admin</a></p>`
+    ).catch(() => {});
+
+    res.json({ success: true, message: 'Solicitud de reposición enviada' });
+  } catch (err) {
+    console.error('request-replacement error:', err);
+    res.status(500).json({ error: 'Error al solicitar reposición' });
   }
 });
 

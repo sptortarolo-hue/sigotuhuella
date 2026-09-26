@@ -147,6 +147,11 @@ export default function MyPetDetail() {
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [qrRequested, setQrRequested] = useState(false);
   const [qrLoading, setQrLoading] = useState(false);
+  const [replacementRequested, setReplacementRequested] = useState(false);
+  const [replacementReason, setReplacementReason] = useState<string | null>(null);
+  const [replacementFormReason, setReplacementFormReason] = useState<'perdida' | 'deteriorada'>('perdida');
+  const [showReplacementForm, setShowReplacementForm] = useState(false);
+  const [replacementLoading, setReplacementLoading] = useState(false);
   const [vetShareEnabled, setVetShareEnabled] = useState(false);
   const [vetShareToken, setVetShareToken] = useState<string | null>(null);
   const [vetShareLoading, setVetShareLoading] = useState(false);
@@ -196,6 +201,8 @@ export default function MyPetDetail() {
       setPet(data.myPet);
       setRelatedReports(data.myPet.related_reports || []);
       setQrRequested(data.myPet.qr_requested || false);
+      setReplacementRequested(data.myPet.qr_replacement_requested || false);
+      setReplacementReason(data.myPet.qr_replacement_reason || null);
       setVetShareEnabled(data.myPet.vet_share_enabled || false);
       setVetShareToken(data.myPet.vet_share_token || null);
     } catch (e) { console.error(e); }
@@ -272,6 +279,20 @@ export default function MyPetDetail() {
       alert(e.message || 'Error al solicitar QR');
     } finally {
       setQrLoading(false);
+    }
+  };
+
+  const handleRequestReplacement = async () => {
+    try {
+      setReplacementLoading(true);
+      await api.myPets.requestReplacement(id!, replacementFormReason);
+      setReplacementRequested(true);
+      setReplacementReason(replacementFormReason);
+      setShowReplacementForm(false);
+    } catch (e: any) {
+      alert(e.message || 'Error al solicitar reposición');
+    } finally {
+      setReplacementLoading(false);
     }
   };
 
@@ -913,6 +934,7 @@ export default function MyPetDetail() {
                   <QrCode className="w-4 h-4" /> Identificación QR
                 </h4>
                 {qrDataUrl ? (
+                  <>
                   <div className="p-4 bg-brand-bg rounded-2xl flex items-center gap-4">
                     <img src={qrDataUrl} alt="QR" className="w-32 h-32 rounded-xl" />
                     <div className="flex-1 min-w-0">
@@ -929,6 +951,50 @@ export default function MyPetDetail() {
                       </div>
                     </div>
                   </div>
+                  <div className="mt-3">
+                    {replacementRequested ? (
+                      <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-sm text-amber-700">
+                        Reposición solicitada ({replacementReason === 'deteriorada' ? 'deterioro' : 'pérdida'}). Te avisaremos cuando tu nueva chapita esté lista. La actual sigue activa hasta entonces.
+                      </div>
+                    ) : showReplacementForm ? (
+                      <div className="p-4 bg-brand-bg rounded-2xl space-y-3">
+                        <p className="text-xs font-bold text-brand-primary">¿Qué pasó con tu chapita?</p>
+                        <select
+                          value={replacementFormReason}
+                          onChange={e => setReplacementFormReason(e.target.value as 'perdida' | 'deteriorada')}
+                          className="w-full px-3 py-2 bg-white border border-brand-accent rounded-xl text-xs outline-none"
+                        >
+                          <option value="perdida">Se perdió</option>
+                          <option value="deteriorada">Se deterioró</option>
+                        </select>
+                        <p className="text-[11px] text-gray-500">Al asignarte la nueva, la chapita anterior quedará dada de baja y dejará de funcionar.</p>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={handleRequestReplacement}
+                            disabled={replacementLoading}
+                            className="px-4 py-2 bg-brand-primary text-white rounded-xl text-xs font-bold hover:shadow transition-all disabled:opacity-50"
+                          >
+                            {replacementLoading ? 'Enviando…' : 'Confirmar solicitud'}
+                          </button>
+                          <button
+                            onClick={() => setShowReplacementForm(false)}
+                            className="px-4 py-2 border border-brand-accent rounded-xl text-xs font-bold text-gray-500 hover:bg-white transition-colors"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setShowReplacementForm(true)}
+                        className="px-4 py-2.5 border border-brand-accent text-brand-primary rounded-xl text-xs font-bold flex items-center gap-2 hover:bg-brand-bg transition-colors"
+                      >
+                        <QrCode className="w-3 h-3" />
+                        Reponer chapita (pérdida / deterioro)
+                      </button>
+                    )}
+                  </div>
+                  </>
                 ) : qrRequested ? (
                   <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-sm text-amber-700">
                     Solicitud de QR enviada. El admin te lo asignará pronto.

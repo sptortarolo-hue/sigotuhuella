@@ -35,14 +35,58 @@ interface AdminMyPetDetailProps {
   isMobile?: boolean;
   onEdit?: () => void;
   onDelete?: (pet: any) => void;
+  onReplaced?: () => void;
 }
 
-export default function AdminMyPetDetail({ pet, onClose, isMobile, onEdit, onDelete }: AdminMyPetDetailProps) {
+export default function AdminMyPetDetail({ pet, onClose, isMobile, onEdit, onDelete, onReplaced }: AdminMyPetDetailProps) {
   const [lightboxImages, setLightboxImages] = useState<string[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [copied, setCopied] = useState<string | null>(null);
   const [qrLoading, setQrLoading] = useState(false);
   const [qrRequested, setQrRequested] = useState(false);
+  const [showReplaceForm, setShowReplaceForm] = useState(false);
+  const [freeQrs, setFreeQrs] = useState<any[]>([]);
+  const [freeQrsLoading, setFreeQrsLoading] = useState(false);
+  const [replaceQrId, setReplaceQrId] = useState('');
+  const [replaceLoading, setReplaceLoading] = useState(false);
+
+  const handleOpenReplace = async () => {
+    setShowReplaceForm(true);
+    setReplaceQrId('');
+    try {
+      setFreeQrsLoading(true);
+      const data: any = await api.qr.unassigned();
+      setFreeQrs(data.identifiers || []);
+    } catch (e: any) {
+      alert(e?.message || 'Error al cargar QRs libres');
+    } finally {
+      setFreeQrsLoading(false);
+    }
+  };
+
+  const handleReplace = async () => {
+    if (!replaceQrId) return;
+    if (!window.confirm(`Reponer chapita de ${pet.name} (${pet.qr_data?.code}) con el código seleccionado? La anterior quedará dada de baja.`)) return;
+    setReplaceLoading(true);
+    try {
+      const result: any = await api.qr.replace(pet.id, replaceQrId);
+      alert(`Chapita repuesta: ${result.old_code} → ${result.new_code}. La anterior quedó dada de baja.`);
+      setShowReplaceForm(false);
+      onReplaced?.();
+    } catch (e: any) {
+      alert(e?.message || 'Error al reponer chapita');
+    } finally {
+      setReplaceLoading(false);
+    }
+  };
+
+  const handleSinglePdf = async () => {
+    try {
+      await api.qr.singlePdf(pet.qr_data.id, pet.qr_data.code);
+    } catch (e: any) {
+      alert(e?.message || 'Error al descargar PDF');
+    }
+  };
 
   const handleRequestQr = async () => {
     setQrLoading(true);
@@ -272,7 +316,49 @@ export default function AdminMyPetDetail({ pet, onClose, isMobile, onEdit, onDel
                   className="inline-flex items-center gap-1 text-xs text-gray-500 font-medium hover:text-brand-primary">
                   <Download className="w-3 h-3" /> Descargar QR
                 </button>
+                {pet.qr_data?.id && (
+                  <button onClick={handleSinglePdf}
+                    className="inline-flex items-center gap-1 text-xs text-gray-500 font-medium hover:text-brand-primary">
+                    <Download className="w-3 h-3" /> PDF chapita
+                  </button>
+                )}
+                <button onClick={handleOpenReplace}
+                  className="inline-flex items-center gap-1 text-xs text-amber-700 font-bold hover:text-amber-900">
+                  <QrCode className="w-3 h-3" /> Reponer chapita
+                </button>
               </div>
+              {pet.qr_replacement_requested && (
+                <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1">
+                  El dueño pidió reposición por {pet.qr_replacement_reason === 'deteriorada' ? 'deterioro' : 'pérdida'}
+                  {pet.qr_replacement_requested_at ? ` el ${formatDate(pet.qr_replacement_requested_at)}` : ''}.
+                </p>
+              )}
+              {showReplaceForm && (
+                <div className="mt-2 p-3 bg-amber-50/60 border border-amber-200 rounded-xl space-y-2">
+                  <p className="text-[11px] text-amber-800 font-bold">La chapita {pet.qr_data.code} quedará dada de baja y dejará de funcionar.</p>
+                  <select
+                    value={replaceQrId}
+                    onChange={e => setReplaceQrId(e.target.value)}
+                    disabled={freeQrsLoading || replaceLoading}
+                    className="w-full px-3 py-2 bg-white rounded-xl border border-amber-300 text-xs outline-none disabled:opacity-50"
+                  >
+                    <option value="" disabled>{freeQrsLoading ? 'Cargando…' : 'Elegí la chapita nueva…'}</option>
+                    {freeQrs.map((qr: any) => (
+                      <option key={qr.id} value={qr.id}>{qr.code}</option>
+                    ))}
+                  </select>
+                  <div className="flex gap-2">
+                    <button onClick={handleReplace} disabled={!replaceQrId || replaceLoading}
+                      className="px-3 py-1.5 bg-amber-600 text-white rounded-lg text-xs font-bold hover:bg-amber-700 transition-colors disabled:opacity-50 flex items-center gap-1">
+                      {replaceLoading && <Loader2 className="w-3 h-3 animate-spin" />} Confirmar reposición
+                    </button>
+                    <button onClick={() => setShowReplaceForm(false)}
+                      className="px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700">
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

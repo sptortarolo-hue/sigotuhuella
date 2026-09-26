@@ -459,7 +459,7 @@ router.get('/:id/relations', requireAdmin, async (req, res) => {
     const myPetsRes = await pool.query(
       `SELECT mp.*,
         COALESCE(json_agg(json_build_object('id', mpp.id, 'image_data', mpp.image_data, 'mime_type', mpp.mime_type, 'caption', mpp.caption) ORDER BY mpp.created_at) FILTER (WHERE mpp.id IS NOT NULL), '[]') as photos,
-        CASE WHEN qi.id IS NOT NULL THEN json_build_object('code', qi.code, 'share_token', qi.share_token) ELSE NULL END as qr_data
+        CASE WHEN qi.id IS NOT NULL THEN json_build_object('id', qi.id, 'code', qi.code, 'share_token', qi.share_token) ELSE NULL END as qr_data
       FROM my_pets mp
       LEFT JOIN my_pet_photos mpp ON mpp.my_pet_id = mp.id
       LEFT JOIN qr_identifiers qi ON qi.id = mp.qr_id

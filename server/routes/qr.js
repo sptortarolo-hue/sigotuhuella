@@ -174,7 +174,7 @@ router.get('/unassigned', requireAdmin, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT qi.id, qi.code, qi.share_token, qi.batch_id, qi.created_at
-       FROM qr_identifiers qi WHERE qi.my_pet_id IS NULL ORDER BY qi.code ASC`
+       FROM qr_identifiers qi WHERE qi.my_pet_id IS NULL AND COALESCE(qi.retired, FALSE) = FALSE ORDER BY qi.code ASC`
     );
     res.json({ identifiers: result.rows });
   } catch (err) {
@@ -204,6 +204,7 @@ router.post('/assign', requireAdmin, async (req, res) => {
 
     const qrResult = await pool.query('SELECT * FROM qr_identifiers WHERE id = $1', [qr_id]);
     if (qrResult.rows.length === 0) return res.status(404).json({ error: 'QR no encontrado' });
+    if (qrResult.rows[0].retired) return res.status(400).json({ error: 'QR dado de baja, no reutilizable' });
     if (qrResult.rows[0].my_pet_id) return res.status(400).json({ error: 'QR ya asignado' });
 
     const petResult = await pool.query('SELECT * FROM my_pets WHERE id = $1', [my_pet_id]);
@@ -258,6 +259,10 @@ router.post('/reassign', requireAdmin, async (req, res) => {
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'QR no encontrado' });
     }
+    if (qrResult.rows[0].retired) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'QR dado de baja, no reutilizable' });
+    }
 
     const petResult = await client.query('SELECT * FROM my_pets WHERE id = $1', [new_my_pet_id]);
     if (petResult.rows.length === 0) {
@@ -302,6 +307,107 @@ router.post('/reassign', requireAdmin, async (req, res) => {
   }
 });
 
+// Solicitudes de reposición de chapita por pérdida/deterioro (admin).
+router.get('/replacement-requests', requireAdmin, async (_req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT mp.id, mp.name, mp.species, mp.breed, mp.qr_replacement_reason, mp.qr_replacement_requested_at,
+              qi.code AS current_code,
+              u.display_name, u.email, u.phone
+       FROM my_pets mp
+       JOIN users u ON u.id = mp.user_id
+       LEFT JOIN qr_identifiers qi ON qi.id = mp.qr_id
+       WHERE mp.qr_replacement_requested = true
+       ORDER BY mp.qr_replacement_requested_at DESC NULLS LAST`
+    );
+    res.json({ requests: result.rows });
+  } catch (err) {
+    console.error('qr replacement-requests error:', err);
+    res.status(500).json({ error: 'Error al obtener reposiciones' });
+  }
+});
+
+// Reponer chapita: da de baja la actual (retired, deja de resolver) y asigna
+// una libre del pool a la mascota (admin). La baja conserva my_pet_id como historial.
+router.post('/replace', requireAdmin, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { my_pet_id, new_qr_id } = req.body;
+    if (!my_pet_id || !new_qr_id) return res.status(400).json({ error: 'my_pet_id y new_qr_id son requeridos' });
+
+    await client.query('BEGIN');
+
+    const petResult = await client.query('SELECT * FROM my_pets WHERE id = $1', [my_pet_id]);
+    if (petResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Mascota no encontrada' });
+    }
+    const pet = petResult.rows[0];
+    if (!pet.qr_id) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'La mascota no tiene chapita para reponer, usá asignar' });
+    }
+
+    const oldResult = await client.query('SELECT * FROM qr_identifiers WHERE id = $1', [pet.qr_id]);
+    if (oldResult.rows.length === 0 || oldResult.rows[0].retired) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'La chapita actual no existe o ya fue dada de baja' });
+    }
+
+    const newResult = await client.query('SELECT * FROM qr_identifiers WHERE id = $1', [new_qr_id]);
+    if (newResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'QR nuevo no encontrado' });
+    }
+    if (newResult.rows[0].retired) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'QR nuevo dado de baja, no reutilizable' });
+    }
+    if (newResult.rows[0].my_pet_id) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'QR nuevo ya asignado' });
+    }
+
+    const reason = pet.qr_replacement_reason || 'reposicion';
+
+    // 1. Baja lógica de la chapita anterior (conserva my_pet_id como historial)
+    await client.query(
+      'UPDATE qr_identifiers SET retired = TRUE, retired_reason = $1, retired_at = NOW() WHERE id = $2',
+      [reason, pet.qr_id]
+    );
+
+    // 2. Asignar la nueva del pool
+    await client.query(
+      `UPDATE qr_identifiers SET my_pet_id = $1, assigned_at = NOW(),
+        notification_status = 'pending', notified_at = NULL, notification_channel = NULL WHERE id = $2`,
+      [my_pet_id, new_qr_id]
+    );
+    await client.query(
+      `UPDATE my_pets SET qr_id = $1, qr_requested = false,
+        qr_replacement_requested = false, qr_replacement_reason = NULL, qr_replacement_requested_at = NULL
+       WHERE id = $2`,
+      [new_qr_id, my_pet_id]
+    );
+
+    await client.query('COMMIT');
+
+    // 3. Notificar al dueño con la chapita nueva (punto de retiro, etc.)
+    const userResult = await pool.query('SELECT * FROM users WHERE id = $1', [pet.user_id]);
+    if (userResult.rows.length > 0) {
+      notifyChapitaReady(new_qr_id, newResult.rows[0].share_token, newResult.rows[0].code, pet.name, userResult.rows[0])
+        .catch(err => console.error('qr replace notify error:', err));
+    }
+
+    res.json({ success: true, old_code: oldResult.rows[0].code, new_code: newResult.rows[0].code });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('qr replace error:', err);
+    res.status(500).json({ error: 'Error al reponer chapita' });
+  } finally {
+    client.release();
+  }
+});
+
 router.post('/claim', requireAuth, async (req, res) => {
   try {
     const { code, my_pet_id } = req.body;
@@ -312,6 +418,7 @@ router.post('/claim', requireAuth, async (req, res) => {
       [code.toUpperCase()]
     );
     if (qrResult.rows.length === 0) return res.status(404).json({ error: 'Código no encontrado' });
+    if (qrResult.rows[0].retired) return res.status(400).json({ error: 'Chapita dada de baja, no reutilizable' });
     if (qrResult.rows[0].my_pet_id) return res.status(400).json({ error: 'Este QR ya está asignado a otra mascota' });
 
     const petResult = await pool.query(
@@ -347,6 +454,7 @@ router.post('/assign-by-token', requireAuth, async (req, res) => {
       [share_token]
     );
     if (qrResult.rows.length === 0) return res.status(404).json({ error: 'QR no encontrado' });
+    if (qrResult.rows[0].retired) return res.status(400).json({ error: 'Chapita dada de baja, no reutilizable' });
     if (qrResult.rows[0].my_pet_id) return res.status(400).json({ error: 'Este QR ya está asignado a otra mascota' });
 
     const petResult = await pool.query(
@@ -376,14 +484,14 @@ router.get('/public/:shareToken', async (req, res) => {
   try {
     // Verify the QR exists before anything else
     const existsResult = await pool.query(
-      'SELECT id, my_pet_id, code FROM qr_identifiers WHERE share_token = $1',
+      'SELECT id, my_pet_id, code, retired FROM qr_identifiers WHERE share_token = $1',
       [req.params.shareToken]
     );
 
     if (existsResult.rows.length === 0) {
       if (/^\d+$/.test(req.params.shareToken)) {
         const petQrResult = await pool.query(
-          'SELECT share_token FROM qr_identifiers WHERE my_pet_id = $1',
+          'SELECT share_token FROM qr_identifiers WHERE my_pet_id = $1 AND COALESCE(retired, FALSE) = FALSE ORDER BY assigned_at DESC NULLS LAST LIMIT 1',
           [req.params.shareToken]
         );
         if (petQrResult.rows.length > 0) {
@@ -391,6 +499,11 @@ router.get('/public/:shareToken', async (req, res) => {
         }
       }
       return res.json({ found: false, exists: false });
+    }
+
+    // Chapita dada de baja por reposición: no resuelve perfil ni ofrece asociar
+    if (existsResult.rows[0].retired) {
+      return res.json({ found: false, exists: true, retired: true });
     }
 
     // Check if QR is linked to a pending adoption assignment
@@ -568,12 +681,18 @@ router.post('/public/:shareToken/scan', async (req, res) => {
   try {
     const { latitude, longitude } = req.body;
 
+    const retiredCheck = await pool.query(
+      'SELECT id FROM qr_identifiers WHERE share_token = $1 AND COALESCE(retired, FALSE) = TRUE',
+      [req.params.shareToken]
+    );
+    if (retiredCheck.rows.length > 0) return res.status(410).json({ error: 'Chapita dada de baja', retired: true });
+
     const petResult = await pool.query(
       `SELECT mp.name as pet_name, mp.user_id, u.display_name as owner_name, u.email as owner_email, u.phone as owner_phone, u.notification_preference as owner_notification_preference
        FROM qr_identifiers qi
        JOIN my_pets mp ON mp.id = qi.my_pet_id
        JOIN users u ON u.id = mp.user_id
-       WHERE qi.share_token = $1`,
+       WHERE qi.share_token = $1 AND COALESCE(qi.retired, FALSE) = FALSE`,
       [req.params.shareToken]
     );
     if (petResult.rows.length === 0) return res.status(404).json({ error: 'QR no encontrado' });
@@ -642,12 +761,18 @@ router.post('/public/:shareToken/found', async (req, res) => {
     const { finder_name, finder_phone, finder_location, finder_notes } = req.body;
     if (!finder_phone) return res.status(400).json({ error: 'Teléfono de contacto es requerido' });
 
+    const retiredCheck = await pool.query(
+      'SELECT id FROM qr_identifiers WHERE share_token = $1 AND COALESCE(retired, FALSE) = TRUE',
+      [req.params.shareToken]
+    );
+    if (retiredCheck.rows.length > 0) return res.status(410).json({ error: 'Chapita dada de baja', retired: true });
+
     const qrResult = await pool.query(
       `SELECT qi.code, mp.name as pet_name, mp.gender, mp.user_id, u.display_name as owner_name, u.email as owner_email, u.phone as owner_phone, u.notification_preference as owner_notification_preference
        FROM qr_identifiers qi
        JOIN my_pets mp ON mp.id = qi.my_pet_id
        JOIN users u ON u.id = mp.user_id
-       WHERE qi.share_token = $1`,
+       WHERE qi.share_token = $1 AND COALESCE(qi.retired, FALSE) = FALSE`,
       [req.params.shareToken]
     );
     if (qrResult.rows.length === 0) return res.status(404).json({ error: 'QR no encontrado' });
@@ -725,7 +850,7 @@ router.get('/assigned', requireAdmin, async (req, res) => {
     const offset = (page - 1) * limit;
 
     const countResult = await pool.query(
-      'SELECT COUNT(*) FROM qr_identifiers WHERE my_pet_id IS NOT NULL'
+      'SELECT COUNT(*) FROM qr_identifiers WHERE my_pet_id IS NOT NULL AND COALESCE(retired, FALSE) = FALSE'
     );
     const total = parseInt(countResult.rows[0].count);
     const pages = Math.ceil(total / limit);
@@ -737,7 +862,7 @@ router.get('/assigned', requireAdmin, async (req, res) => {
        FROM qr_identifiers qi
        JOIN my_pets mp ON mp.id = qi.my_pet_id
        JOIN users u ON u.id = mp.user_id
-       WHERE qi.my_pet_id IS NOT NULL
+       WHERE qi.my_pet_id IS NOT NULL AND COALESCE(qi.retired, FALSE) = FALSE
        ORDER BY qi.assigned_at DESC
        LIMIT $1 OFFSET $2`,
       [limit, offset]
@@ -754,10 +879,10 @@ router.post('/assigned/:id/notify', requireAdmin, async (req, res) => {
     const qrResult = await pool.query(
       `SELECT qi.id, qi.code, qi.share_token, mp.id as pet_id, mp.name as pet_name,
                u.id as user_id, u.email, u.phone, u.display_name, u.notification_preference
-        FROM qr_identifiers qi
-        JOIN my_pets mp ON mp.id = qi.my_pet_id
-        JOIN users u ON u.id = mp.user_id
-        WHERE qi.id = $1 AND qi.my_pet_id IS NOT NULL`,
+         FROM qr_identifiers qi
+         JOIN my_pets mp ON mp.id = qi.my_pet_id
+         JOIN users u ON u.id = mp.user_id
+         WHERE qi.id = $1 AND qi.my_pet_id IS NOT NULL AND COALESCE(qi.retired, FALSE) = FALSE`,
       [req.params.id]
     );
     if (qrResult.rows.length === 0) {
@@ -783,7 +908,7 @@ router.post('/assigned/:id/notify', requireAdmin, async (req, res) => {
 
 router.delete('/cleanup', requireAdmin, async (req, res) => {
   try {
-    const result = await pool.query('DELETE FROM qr_identifiers WHERE my_pet_id IS NULL');
+    const result = await pool.query('DELETE FROM qr_identifiers WHERE my_pet_id IS NULL AND COALESCE(retired, FALSE) = FALSE');
     res.json({ success: true, deleted: result.rowCount });
   } catch (err) {
     console.error('qr cleanup error:', err);
@@ -806,11 +931,12 @@ router.post('/reactivate', requireAdmin, async (req, res) => {
 
     // Check if already exists
     const existing = await pool.query(
-      'SELECT qi.code, qi.my_pet_id, mp.name as pet_name FROM qr_identifiers qi LEFT JOIN my_pets mp ON mp.id = qi.my_pet_id WHERE qi.share_token = $1',
+      'SELECT qi.code, qi.my_pet_id, qi.retired, mp.name as pet_name FROM qr_identifiers qi LEFT JOIN my_pets mp ON mp.id = qi.my_pet_id WHERE qi.share_token = $1',
       [share_token]
     );
     if (existing.rows.length > 0) {
       const row = existing.rows[0];
+      if (row.retired) return res.status(400).json({ error: 'Chapita dada de baja por reposición, no reutilizable' });
       return res.json({
         success: true,
         reactivated: false,
@@ -1211,6 +1337,37 @@ ${inner}
 </svg>`;
   return sharp(Buffer.from(svg)).png().toBuffer();
 }
+
+// PDF de una sola chapita en formato físico (reimpresión, reposición).
+router.get('/:id/pdf', requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT code, share_token FROM qr_identifiers WHERE id = $1 AND COALESCE(retired, FALSE) = FALSE',
+      [req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'QR no encontrado o dado de baja' });
+    const { code, share_token } = result.rows[0];
+
+    const layout = await getLayout(req.query.page_w, req.query.page_h);
+    const { MM_TO_PT, PAGE_W_PT, PAGE_H_PT, TAG_SIZE_PT, MARGIN_X_MM, MARGIN_Y_MM } = layout;
+
+    const doc = new PDFDocument({ size: [PAGE_W_PT, PAGE_H_PT], margin: 0 });
+    res.set('Content-Type', 'application/pdf');
+    res.set('Content-Disposition', `attachment; filename="chapita-${code}.pdf"`);
+    doc.pipe(res);
+
+    const [qrPng, logoPng] = await Promise.all([
+      generateQrPng(code, share_token),
+      generateLogoPng(),
+    ]);
+    doc.image(qrPng, MARGIN_X_MM * MM_TO_PT, MARGIN_Y_MM * MM_TO_PT, { width: TAG_SIZE_PT });
+    doc.image(logoPng, (MARGIN_X_MM + TAG_SIZE_MM + GAP_MM) * MM_TO_PT, MARGIN_Y_MM * MM_TO_PT, { width: TAG_SIZE_PT });
+    doc.end();
+  } catch (err) {
+    console.error('qr single pdf error:', err);
+    res.status(500).json({ error: `Error al generar PDF: ${err.message}` });
+  }
+});
 
 router.get('/batch/:batchId/pdf', requireAdmin, async (req, res) => {
   try {

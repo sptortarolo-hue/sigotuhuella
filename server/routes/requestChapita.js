@@ -31,7 +31,7 @@ router.post('/', async (req, res) => {
     // Validate share_token if provided
     if (share_token) {
       const qrCheck = await client.query(
-        'SELECT id FROM qr_identifiers WHERE share_token = $1 AND (my_pet_id IS NULL OR my_pet_id = $2)',
+        'SELECT id FROM qr_identifiers WHERE share_token = $1 AND COALESCE(retired, FALSE) = FALSE AND (my_pet_id IS NULL OR my_pet_id = $2)',
         [share_token, my_pet_id || null]
       );
       if (qrCheck.rows.length === 0) {

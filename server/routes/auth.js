@@ -229,7 +229,7 @@ router.delete('/me', requireAuth, async (req, res) => {
       if (myPetIds.length > 0) {
         // Liberar referencias antes de borrar "mis mascotas"
         await client.query('UPDATE pets SET my_pet_id = NULL WHERE my_pet_id = ANY($1)', [myPetIds]);
-        await client.query('UPDATE qr_identifiers SET my_pet_id = NULL, assigned_at = NULL WHERE my_pet_id = ANY($1)', [myPetIds]);
+        await client.query('UPDATE qr_identifiers SET my_pet_id = NULL, assigned_at = NULL WHERE my_pet_id = ANY($1) AND COALESCE(retired, FALSE) = FALSE', [myPetIds]);
       }
 
       // "Mis mascotas" (cascada: fotos, eventos, shares, feed_posts, nominees de concurso)
