@@ -327,6 +327,7 @@ export default function AdminMyPetDetail({ pet, onClose, isMobile, onEdit, onDel
                   <QrCode className="w-3 h-3" /> Reponer chapita
                 </button>
               </div>
+              <p className="text-[10px] text-gray-400 mt-1">Da de baja la actual y asigna una libre. Funciona con o sin solicitud previa (pedidos por WhatsApp, teléfono o presenciales).</p>
               {pet.qr_replacement_requested && (
                 <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1">
                   El dueño pidió reposición por {pet.qr_replacement_reason === 'deteriorada' ? 'deterioro' : 'pérdida'}

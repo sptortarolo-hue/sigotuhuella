@@ -566,6 +566,14 @@ export default function MyPetsPortal() {
                     <ChevronRight className="w-4 h-4" />
                   </div>
                 </div>
+                {pet.qr_id && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); navigate(`/mi-mascota/${pet.id}`); }}
+                    className="mt-3 w-full py-2 text-xs font-bold text-brand-primary hover:underline flex items-center justify-center gap-1"
+                  >
+                    <QrCode className="w-3.5 h-3.5" /> ¿Perdiste la chapita? Pedí reposición
+                  </button>
+                )}
               </div>
             </motion.div>
           ))}

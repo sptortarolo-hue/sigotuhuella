@@ -822,13 +822,14 @@ export default function Admin() {
     setSelectedMyPetData(mp);
   };
 
-  const handleOpenMyPetById = async (myPetId: string) => {
+  const handleOpenMyPetById = async (myPetId: string, switchTab = false) => {
     try {
       setMobileView('pet');
       const data = await api.myPets.get(myPetId);
       setSelectedPetData(null);
       setSelectedPetId(null);
       setSelectedMyPetData(data.myPet);
+      if (switchTab) setActiveTab('pets');
     } catch (e) {
       console.error(e);
       alert('Error al cargar la mascota');
@@ -1179,7 +1180,7 @@ export default function Admin() {
           { id: 'scraper', label: 'Scraper', icon: Globe },
           { id: 'facebook', label: 'Facebook', icon: Globe },
           { id: 'videos', label: 'Videos', icon: Film },
-  { id: 'qr', label: 'QR', icon: QrCode },
+  { id: 'qr', label: 'Chapitas', icon: QrCode },
   { id: 'sponsors', label: 'Colaboradores', icon: Heart },
   { id: 'raffles', label: 'Rifas', icon: Ticket },
   { id: 'analytics', label: 'Analytics', icon: BarChart3 },
@@ -1201,6 +1202,11 @@ export default function Admin() {
           >
             <tab.icon className="w-5 h-5" />
             {tab.label}
+            {tab.id === 'qr' && qrReplacements.length > 0 && (
+              <span className="min-w-5 h-5 px-1 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center" title={`${qrReplacements.length} reposiciones pendientes`}>
+                {qrReplacements.length}
+              </span>
+            )}
             {activeTab === tab.id && (
               <motion.div layoutId="tab-underline" className="absolute bottom-0 left-0 right-0 h-1 bg-brand-primary rounded-t-full" />
             )}
@@ -2748,19 +2754,26 @@ export default function Admin() {
     </div>
 
     {/* Notify Modal */}
-    {qrReplacements.length > 0 && (
-      <div className="bg-white rounded-[2.5rem] border border-amber-300 p-6 sm:p-8">
-        <h3 className="text-lg font-bold text-brand-primary mb-1">Reposiciones solicitadas ({qrReplacements.length})</h3>
-        <p className="text-xs text-gray-400 mb-4">Pérdida o deterioro. Al reponer, la chapita anterior queda dada de baja y deja de funcionar.</p>
-        <div className="space-y-3">
-          {qrReplacements.map((r: any) => (
-            <div key={r.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 bg-amber-50/50 rounded-2xl border border-amber-100">
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-gray-800">
+    <div className="bg-white rounded-[2.5rem] border border-amber-300 p-6 sm:p-8">
+      <h3 className="text-lg font-bold text-brand-primary mb-1">Reposiciones solicitadas ({qrReplacements.length})</h3>
+      <p className="text-xs text-gray-400 mb-4">
+        Pérdida o deterioro. Al reponer, la chapita anterior queda dada de baja y deja de funcionar.
+        Si te la piden por WhatsApp, teléfono o presencial (sin solicitud en la app), abrí la mascota en la solapa Mascotas y usá “Reponer chapita”.
+      </p>
+      {qrReplacements.length === 0 ? (
+        <p className="text-sm text-gray-400 py-2">Sin reposiciones pendientes.</p>
+      ) : (
+      <div className="space-y-3">
+        {qrReplacements.map((r: any) => (
+          <div key={r.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 bg-amber-50/50 rounded-2xl border border-amber-100">
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-gray-800">
+                <button onClick={() => handleOpenMyPetById(r.id, true)} className="hover:text-brand-primary hover:underline text-left" title="Abrir ficha de la mascota">
                   {r.name}
-                  <span className="font-normal text-gray-400 text-xs ml-1">
-                    ({r.species === 'dog' ? 'Perro' : r.species === 'cat' ? 'Gato' : r.species}{r.breed ? ` · ${r.breed}` : ''})
-                  </span>
+                </button>
+                <span className="font-normal text-gray-400 text-xs ml-1">
+                  ({r.species === 'dog' ? 'Perro' : r.species === 'cat' ? 'Gato' : r.species}{r.breed ? ` · ${r.breed}` : ''})
+                </span>
                   <span className={`ml-2 text-[10px] font-bold px-2 py-0.5 rounded-full ${r.qr_replacement_reason === 'deteriorada' ? 'bg-orange-100 text-orange-700' : 'bg-red-50 text-red-600'}`}>
                     {r.qr_replacement_reason === 'deteriorada' ? 'Deterioro' : 'Pérdida'}
                   </span>
@@ -2794,8 +2807,8 @@ export default function Admin() {
             </div>
           ))}
         </div>
-      </div>
-    )}
+      )}
+    </div>
 
     {/* Notify Modal */}
     <AnimatePresence>
