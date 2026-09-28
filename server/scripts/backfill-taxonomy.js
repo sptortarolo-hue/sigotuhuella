@@ -18,20 +18,11 @@ if (existsSync(envPath)) {
 }
 
 import pool from '../db.js';
-import { applyPetTaxonomy } from '../services/taxonomy.js';
+import { backfillTaxonomy } from '../services/taxonomy.js';
 
 async function main() {
-  const rows = await pool.query(
-    `SELECT id FROM pets WHERE breed_normalized IS NULL AND size_normalized IS NULL AND color_normalized IS NULL ORDER BY created_at`
-  );
-  console.log(`[backfill-taxonomy] ${rows.rows.length} mascotas por normalizar`);
-  let ok = 0;
-  for (const r of rows.rows) {
-    await applyPetTaxonomy(r.id);
-    ok++;
-    if (ok % 100 === 0) console.log(`  ...${ok} procesadas`);
-  }
-  console.log(`[backfill-taxonomy] ${ok} mascotas normalizadas`);
+  const { total, normalized } = await backfillTaxonomy(10000, (ok, n) => console.log(`  ...${ok}/${n} procesadas`));
+  console.log(`[backfill-taxonomy] ${normalized}/${total} mascotas normalizadas`);
   await pool.end();
 }
 

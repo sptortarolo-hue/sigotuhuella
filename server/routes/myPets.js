@@ -7,6 +7,7 @@ import { notifyVolunteersOfNewPet } from '../services/volunteerNotificationServi
 import { broadcastPetToGroups } from '../services/whatsappService.js';
 import { notifyPetPublication } from '../services/petPublicationNotification.js';
 import { createPetCase } from '../services/caseService.js';
+import { applyPetTaxonomy } from '../services/taxonomy.js';
 import { extractNeighborhoods } from '../services/geocoding.js';
 import { v4 as uuidv4 } from 'uuid';
 import sharp from 'sharp';
@@ -1248,6 +1249,7 @@ router.post('/:id/report-lost', requireAuth, async (req, res) => {
     broadcastPetToGroups(pet.id).catch(e => console.error('Broadcast error:', e));
     notifyPetPublication(pet.id, phone || req.user.phone || '').catch(e => console.error('Publication notify error:', e));
     createPetCase(pet, { source: 'lost_report' }).catch(e => console.error('createPetCase error:', e));
+    try { await applyPetTaxonomy(pet.id); } catch (e) { console.error('Taxonomy normalize error:', e); }
 
     res.status(201).json({ pet });
   } catch (err) {

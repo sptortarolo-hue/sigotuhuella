@@ -184,6 +184,8 @@ export const api = {
       return request(`/pets?${params.toString()}`);
     },
     taxonomy: () => request('/pets/taxonomy'),
+    backfillTaxonomy: (limit?: number) =>
+      request('/pets/admin/backfill-taxonomy', { method: 'POST', body: JSON.stringify({ limit: limit || 2000 }) }),
     ownerData: (id: string) => request(`/pets/${id}/owner-data`),
     records: {
       list: (petId: string) => request(`/pets/${petId}/records`),

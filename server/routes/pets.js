@@ -14,7 +14,8 @@ import { sendPushToAdmins } from '../services/pushService.js';
 import sharp from 'sharp';
 import { replyToComment } from '../services/instagramService.js';
 import { addPetHistory, awardBadgeIfMissing } from '../services/reunionCelebration.js';
-import { applyPetTaxonomy, getTaxonomy } from '../services/taxonomy.js';
+import { applyPetTaxonomy, getTaxonomy, mapSpeciesToEn, speciesLabelEs, backfillTaxonomy } from '../services/taxonomy.js';
+import { buildFacetConditions } from '../services/petSearch.js';
 import PDFDocument from 'pdfkit';
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
@@ -111,26 +112,10 @@ router.get('/', async (req, res) => {
     `;
     const conditions = [];
     const params = [];
-    if (status) {
-      params.push(status);
-      conditions.push(`p.status = $${params.length}`);
-    }
-    // Filtros facetados del buscador (especie, raza, tamaño, color, edad, pelo)
-    const facetFilters = {
-      species: 'p.species',
-      breed: 'p.breed_normalized',
-      size: 'p.size_normalized',
-      color: 'p.color_normalized',
-      age_group: 'p.age_group',
-      coat: 'p.coat_length',
-    };
-    for (const [key, col] of Object.entries(facetFilters)) {
-      const value = req.query[key];
-      if (value && value !== 'all') {
-        params.push(value);
-        conditions.push(`${col} = $${params.length}`);
-      }
-    }
+    // Estado + facetas: los resuelve el motor de búsqueda (buildFacetConditions)
+    // Filtros facetados del buscador (motor por niveles: exacto → triggers → trigram)
+    const { conditions: facetConds, rankExpr } = await buildFacetConditions(req.query, params);
+    conditions.push(...facetConds);
     if (include_hidden !== 'true') {
       conditions.push(`(p.is_hidden = FALSE OR p.is_hidden IS NULL)`);
       conditions.push(`p.group_id IS NULL`);
@@ -145,7 +130,7 @@ router.get('/', async (req, res) => {
     if (conditions.length > 0) {
       query += ` WHERE ${conditions.join(' AND ')}`;
     }
-    query += ` GROUP BY p.id ORDER BY p.created_at DESC`;
+    query += ` GROUP BY p.id ORDER BY ${rankExpr ? `${rankExpr} ASC, ` : ''}p.created_at DESC`;
     if (limit) {
       params.push(parseInt(limit));
       query += ` LIMIT $${params.length}`;
@@ -212,26 +197,10 @@ router.get('/admin-list', requireCoordinator, async (req, res) => {
       conditions.push(coarseZoneSql(params.length, coordZones.polygons.length > 0));
     }
 
-    if (status) {
-      params.push(status);
-      conditions.push(`p.status = $${params.length}`);
-    }
-    // Filtros facetados del buscador (especie, raza, tamaño, color, edad, pelo)
-    const facetFilters = {
-      species: 'p.species',
-      breed: 'p.breed_normalized',
-      size: 'p.size_normalized',
-      color: 'p.color_normalized',
-      age_group: 'p.age_group',
-      coat: 'p.coat_length',
-    };
-    for (const [key, col] of Object.entries(facetFilters)) {
-      const value = req.query[key];
-      if (value && value !== 'all') {
-        params.push(value);
-        conditions.push(`${col} = $${params.length}`);
-      }
-    }
+    // Estado + facetas: los resuelve el motor de búsqueda (buildFacetConditions)
+    // Filtros facetados del buscador (motor por niveles: exacto → triggers → trigram)
+    const { conditions: facetCondsAdmin, rankExpr: rankExprAdmin } = await buildFacetConditions(req.query, params);
+    conditions.push(...facetCondsAdmin);
     if (include_hidden !== 'true') {
       conditions.push(`(p.is_hidden = FALSE OR p.is_hidden IS NULL)`);
       conditions.push(`p.group_id IS NULL`);
@@ -241,7 +210,7 @@ router.get('/admin-list', requireCoordinator, async (req, res) => {
     if (conditions.length > 0) {
       query += ` WHERE ${conditions.join(' AND ')}`;
     }
-    query += ` GROUP BY p.id ORDER BY p.created_at DESC`;
+    query += ` GROUP BY p.id ORDER BY ${rankExprAdmin ? `${rankExprAdmin} ASC, ` : ''}p.created_at DESC`;
     if (limit) {
       params.push(parseInt(limit));
       query += ` LIMIT $${params.length}`;
@@ -264,6 +233,18 @@ router.get('/taxonomy', async (_req, res) => {
   } catch (err) {
     console.error('Get taxonomy error:', err);
     res.status(500).json({ error: 'Failed to fetch taxonomy' });
+  }
+});
+
+// ── Backfill de normalización (admin): re-normaliza avisos pendientes ────
+router.post('/admin/backfill-taxonomy', requireAdmin, async (req, res) => {
+  try {
+    const limit = Math.min(10000, Math.max(1, parseInt(req.body?.limit) || 2000));
+    const result = await backfillTaxonomy(limit);
+    res.json({ success: true, ...result });
+  } catch (err) {
+    console.error('Backfill taxonomy error:', err);
+    res.status(500).json({ error: 'Error en backfill de taxonomía' });
   }
 });
 
@@ -432,8 +413,10 @@ router.post('/:id/view', async (req, res) => {
 });
 
 router.post('/', requireAuth, async (req, res) => {
-  const { name, species, breed, color, status, gender, age, size, isVaccinated, isSterilized, description, location, latitude, longitude, contactInfo, images, neighborhoods } = req.body;
-  if (!species || !status || !location) {
+  const { name, breed, color, status, gender, age, size, coat, isVaccinated, isSterilized, description, location, latitude, longitude, contactInfo, images, neighborhoods } = req.body;
+  // Vocabulario único en DB (dog/cat/other); la UI habla español.
+  const species = mapSpeciesToEn(req.body.species) || 'other';
+  if (!req.body.species || !status || !location) {
     return res.status(400).json({ error: 'Species, status, and location are required' });
   }
   // for_adoption requiere un perfil vinculado (my_pet_id). Sin él, es un aviso simple.
@@ -442,11 +425,11 @@ router.post('/', requireAuth, async (req, res) => {
   try {
     await client.query('BEGIN');
     const petResult = await client.query(
-      `INSERT INTO pets (name, species, breed, color, status, gender, age, size, is_vaccinated, is_sterilized, is_dewormed, description, location, latitude, longitude, contact_info, created_by, is_admin_verified, neighborhoods, privacy_notice_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, NOW())
+      `INSERT INTO pets (name, species, breed, color, status, gender, age, size, coat, is_vaccinated, is_sterilized, is_dewormed, description, location, latitude, longitude, contact_info, created_by, is_admin_verified, neighborhoods, privacy_notice_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, NOW())
       RETURNING *`,
        [name || null, species, breed || null, color || null, effectiveStatus, gender || 'unknown',
-        age || null, size || null, isVaccinated || false, isSterilized || false, req.body.isDewormed || false,
+        age || null, size || null, coat || null, isVaccinated || false, isSterilized || false, req.body.isDewormed || false,
         description || null, location, latitude || null, longitude || null,
         contactInfo || null, req.user.id, false, JSON.stringify(resolveNeighborhoods(neighborhoods, location))]
     );
@@ -483,7 +466,7 @@ router.post('/', requireAuth, async (req, res) => {
     matchPetToPosts(pet).catch(err => console.error('Matching FB error:', err));
     matchWhatsAppToPets(pet.id).catch(e => console.error('WhatsApp matching error:', e));
     matchPetToPets(pet).catch(e => console.error('Pet↔pet matching error:', e));
-    applyPetTaxonomy(pet.id).catch(e => console.error('Taxonomy normalize error:', e));
+    try { await applyPetTaxonomy(pet.id); } catch (e) { console.error('Taxonomy normalize error:', e); }
     createPetCase(pet, { source: 'app_auth' }).catch(e => console.error('createPetCase error:', e));
 
     const broadcastStatuses = ['lost', 'for_adoption', 'for_adoption_simple', 'sighted', 'retained', 'accidented', 'needs_attention', 'transitada'];
@@ -516,7 +499,11 @@ router.put('/:id', requireAuth, async (req, res) => {
     if (req.body.status === 'for_adoption' && !pet.my_pet_id) {
       req.body.status = 'for_adoption_simple';
     }
-    const fields = ['name', 'species', 'breed', 'color', 'status', 'gender', 'age', 'size', 'is_vaccinated', 'is_sterilized', 'is_dewormed', 'description', 'location', 'contact_info', 'is_hidden', 'contact_visible', 'owner_name', 'owner_phone', 'owner_email', 'owner_address'];
+    // Vocabulario único en DB (dog/cat/other)
+    if (req.body.species !== undefined) {
+      req.body.species = mapSpeciesToEn(req.body.species) || req.body.species;
+    }
+    const fields = ['name', 'species', 'breed', 'color', 'status', 'gender', 'age', 'size', 'coat', 'is_vaccinated', 'is_sterilized', 'is_dewormed', 'description', 'location', 'contact_info', 'is_hidden', 'contact_visible', 'owner_name', 'owner_phone', 'owner_email', 'owner_address'];
     const updates = [];
     const values = [];
     let idx = 1;
@@ -1651,8 +1638,11 @@ router.get('/:petId/records/report', async (req, res) => {
 
 // Public endpoint (no auth) for quick anonymous reports
 router.post('/public', async (req, res) => {
-  const { species, description, location, latitude, longitude, contact_info, status, images, neighborhoods, name, instagram } = req.body;
-  if (!species || !description || !location) {
+  const { description, location, latitude, longitude, contact_info, status, images, neighborhoods, name, instagram } = req.body;
+  // Vocabulario único en DB (dog/cat/other); el form anónimo habla español.
+  const species = mapSpeciesToEn(req.body.species) || 'other';
+  const speciesEs = speciesLabelEs(req.body.species);
+  if (!req.body.species || !description || !location) {
     return res.status(400).json({ error: 'Species, description, and location are required' });
   }
   const client = await pool.connect();
@@ -1691,8 +1681,8 @@ router.post('/public', async (req, res) => {
       `🐾 Nuevo reporte público (${caseNumber})`,
       `<p style="font-size:16px;margin-bottom:16px;">Se recibió un nuevo reporte a través del formulario público.</p>
        <p style="font-size:14px;margin-bottom:12px;"><strong>Caso:</strong> ${caseNumber}</p>
-       <table style="width:100%;border-collapse:collapse;margin-bottom:12px;">
-         <tr><td style="padding:8px;border:1px solid #e2e8f0;font-weight:bold;">Especie</td><td style="padding:8px;border:1px solid #e2e8f0;">${species}</td></tr>
+        <table style="width:100%;border-collapse:collapse;margin-bottom:12px;">
+         <tr><td style="padding:8px;border:1px solid #e2e8f0;font-weight:bold;">Especie</td><td style="padding:8px;border:1px solid #e2e8f0;">${speciesEs}</td></tr>
          ${name ? `<tr><td style="padding:8px;border:1px solid #e2e8f0;font-weight:bold;">Nombre</td><td style="padding:8px;border:1px solid #e2e8f0;">${name}</td></tr>` : ''}
          <tr><td style="padding:8px;border:1px solid #e2e8f0;font-weight:bold;">Descripción</td><td style="padding:8px;border:1px solid #e2e8f0;">${description}</td></tr>
          <tr><td style="padding:8px;border:1px solid #e2e8f0;font-weight:bold;">Ubicación</td><td style="padding:8px;border:1px solid #e2e8f0;">${location}${latitude && longitude ? ` (${latitude}, ${longitude})` : ''}</td></tr>
@@ -1707,7 +1697,7 @@ router.post('/public', async (req, res) => {
 
         sendPushToAdmins({
           title: `🐾 ${caseNumber} — ${status === 'sighted' ? 'Avistado' : 'Retenido'}`,
-          body: `${name ? name + ' — ' : ''}${species} en ${location}`,
+          body: `${name ? name + ' — ' : ''}${speciesEs} en ${location}`,
           url: `${frontendUrl}/pet/${pet.id}`,
         }).catch(err => console.error('Push error:', err));
 
@@ -1717,6 +1707,7 @@ router.post('/public', async (req, res) => {
         matchPetToPets(pet).catch(e => console.error('Pet↔pet matching error:', e));
         notifyVolunteersOfNewPet(pet).catch(e => console.error('Volunteer notify error:', e));
         await createPetCase(pet, { source: 'app_anon' });
+        try { await applyPetTaxonomy(pet.id); } catch (e) { console.error('Taxonomy normalize error:', e); }
 
         // Auto-broadcast to WhatsApp groups for active statuses
         const broadcastStatuses = ['lost', 'for_adoption', 'for_adoption_simple', 'sighted', 'retained', 'accidented', 'needs_attention', 'transitada'];
@@ -1738,8 +1729,10 @@ router.post('/public', async (req, res) => {
 
 // Lost pet report (no auth) for owner reporting a lost pet with full details
 router.post('/lost-report', async (req, res) => {
-  const { species, name, breed, color, gender, age, size, description, location, latitude, longitude, email, phone, images, neighborhoods, contact_visible } = req.body;
-  if (!species || !description || !location || !email) {
+  const { name, breed, color, gender, age, size, description, location, latitude, longitude, email, phone, images, neighborhoods, contact_visible } = req.body;
+  // Vocabulario único en DB (dog/cat/other); el form habla español.
+  const species = mapSpeciesToEn(req.body.species) || 'other';
+  if (!req.body.species || !description || !location || !email) {
     return res.status(400).json({ error: 'Species, description, location, and email are required' });
   }
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -1810,9 +1803,10 @@ router.post('/lost-report', async (req, res) => {
 
     // Genera el caso del reporte (pet_cases + case_created), igual que /api/pets y /api/pets/public.
     await createPetCase(pet, { source: 'lost_report' });
+    try { await applyPetTaxonomy(pet.id); } catch (e) { console.error('Taxonomy normalize error:', e); }
 
     // Send confirmation email to reporter
-    sendLostPetConfirmationEmail(email, { species, name, breed, color, description, location, phone }, registrationToken)
+    sendLostPetConfirmationEmail(email, { species: speciesLabelEs(species), name, breed, color, description, location, phone }, registrationToken)
       .catch(err => console.error('Failed to send lost pet confirmation email:', err));
 
     // Notify admin
@@ -1821,7 +1815,7 @@ router.post('/lost-report', async (req, res) => {
       '😢 Reporte de mascota perdida (dueño)',
       `<p style="font-size:16px;margin-bottom:16px;">Una persona reportó su propia mascota como perdida.</p>
        <table style="width:100%;border-collapse:collapse;margin-bottom:12px;">
-         <tr><td style="padding:8px;border:1px solid #e2e8f0;font-weight:bold;">Especie</td><td style="padding:8px;border:1px solid #e2e8f0;">${species}</td></tr>
+         <tr><td style="padding:8px;border:1px solid #e2e8f0;font-weight:bold;">Especie</td><td style="padding:8px;border:1px solid #e2e8f0;">${speciesLabelEs(species)}</td></tr>
          ${name ? `<tr><td style="padding:8px;border:1px solid #e2e8f0;font-weight:bold;">Nombre</td><td style="padding:8px;border:1px solid #e2e8f0;">${name}</td></tr>` : ''}
          <tr><td style="padding:8px;border:1px solid #e2e8f0;font-weight:bold;">Descripción</td><td style="padding:8px;border:1px solid #e2e8f0;">${description}</td></tr>
          <tr><td style="padding:8px;border:1px solid #e2e8f0;font-weight:bold;">Ubicación</td><td style="padding:8px;border:1px solid #e2e8f0;">${location}${latitude && longitude ? ` (${latitude}, ${longitude})` : ''}</td></tr>
@@ -1836,7 +1830,7 @@ router.post('/lost-report', async (req, res) => {
 
         sendPushToAdmins({
           title: '😢 Mascota perdida',
-          body: `${name || species} perdid${species === 'gato' ? 'a' : 'o'} en ${location}`,
+          body: `${name || speciesLabelEs(species)} perdid${species === 'cat' ? 'a' : 'o'} en ${location}`,
           url: `${frontendUrl}/pet/${pet.id}`,
         }).catch(err => console.error('Push error:', err));
 

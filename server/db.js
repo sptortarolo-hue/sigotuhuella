@@ -91,6 +91,7 @@ CREATE TABLE IF NOT EXISTS pets (
 ALTER TABLE pets ADD COLUMN IF NOT EXISTS contact_info_2 VARCHAR(255);
 ALTER TABLE pets ADD COLUMN IF NOT EXISTS age VARCHAR(50);
 ALTER TABLE pets ADD COLUMN IF NOT EXISTS size VARCHAR(20);
+ALTER TABLE pets ADD COLUMN IF NOT EXISTS coat VARCHAR(20);
 ALTER TABLE pets ADD COLUMN IF NOT EXISTS is_vaccinated BOOLEAN DEFAULT FALSE;
 ALTER TABLE pets ADD COLUMN IF NOT EXISTS is_sterilized BOOLEAN DEFAULT FALSE;
 ALTER TABLE pets ADD COLUMN IF NOT EXISTS is_dewormed BOOLEAN DEFAULT FALSE;
@@ -2150,6 +2151,31 @@ export async function initDb() {
       CREATE INDEX IF NOT EXISTS idx_qr_identifiers_retired ON qr_identifiers(retired) WHERE retired = TRUE;
       CREATE INDEX IF NOT EXISTS idx_my_pets_replacement ON my_pets(qr_replacement_requested) WHERE qr_replacement_requested = TRUE;
     `, 'qr_chapita_replacement');
+
+    // Buscador: vocabulario único de especie en DB (dog/cat/other)
+    await migrate(client, `
+      UPDATE pets SET species = 'dog' WHERE LOWER(TRIM(species)) IN ('perro', 'perra', 'perros');
+      UPDATE pets SET species = 'cat' WHERE LOWER(TRIM(species)) IN ('gato', 'gata', 'gatos');
+      UPDATE pets SET species = 'other' WHERE LOWER(TRIM(species)) IN ('otro', 'otra', 'otros');
+    `, 'pets_species_en');
+
+    // Buscador tolerante a typos (nivel 3): similitud trigram. Si falla
+    // (sin superuser), el buscador funciona igual sin ese nivel.
+    await migrate(client, `CREATE EXTENSION IF NOT EXISTS pg_trgm`, 'pg_trgm');
+    await migrate(client, `
+      CREATE INDEX IF NOT EXISTS idx_pets_breed_trgm ON pets USING gin (breed gin_trgm_ops);
+      CREATE INDEX IF NOT EXISTS idx_pets_color_trgm ON pets USING gin (color gin_trgm_ops);
+    `, 'pets_trgm_indexes');
+
+    // Pelo observado por el humano (el normalizador lo prefiere al derivado).
+    await migrate(client, `
+      ALTER TABLE pets ADD COLUMN IF NOT EXISTS coat VARCHAR(20);
+    `, 'pets_coat_raw');
+
+    // Componentes del color (bicolor → [marrón, blanco]) para el filtro.
+    await migrate(client, `
+      ALTER TABLE pets ADD COLUMN IF NOT EXISTS color_tokens TEXT[] DEFAULT '{}';
+    `, 'pets_color_tokens');
 
     console.log('Database migrations complete');
   } finally {

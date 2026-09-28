@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/src/hooks/useAuth';
-import { createPet, PetStatus } from '@/src/lib/petService';
+import { createPet, getPetTaxonomy, PetStatus } from '@/src/lib/petService';
 import { filesToBase64 } from '@/src/lib/storageService';
 import { pickPhoto } from '@/src/lib/cameraService';
 import { isNative } from '@/src/lib/platform';
@@ -50,7 +50,10 @@ export default function ReportPet() {
     name: '',
     species: 'dog' as 'dog' | 'cat' | 'other',
     breed: '',
+    breedOther: '',
     color: '',
+    colorOther: '',
+    coat: '',
     status: initialStatus,
     gender: 'unknown' as 'male' | 'female' | 'unknown',
     age: '',
@@ -64,6 +67,9 @@ export default function ReportPet() {
     coordinates: null as { lat: number; lng: number } | null,
     selectedNeighborhoods: [] as string[]
   });
+
+  const [taxonomy, setTaxonomy] = useState<{ breeds: Record<string, string[]>; colors: string[]; coat_lengths: string[] } | null>(null);
+  useEffect(() => { getPetTaxonomy().then(setTaxonomy).catch(() => setTaxonomy(null)); }, []);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
@@ -178,11 +184,12 @@ const handleSubmit = async (e: React.FormEvent) => {
          }));
 
         const petData = {
-         name: formData.name || null,
-         species: formData.species,
-         breed: formData.breed || null,
-         color: formData.color || null,
-         status: formData.status,
+          name: formData.name || null,
+          species: formData.species,
+          breed: (formData.breed === '__other' ? formData.breedOther : formData.breed) || null,
+          color: (formData.color === '__other' ? formData.colorOther : formData.color) || null,
+          coat: formData.coat || null,
+          status: formData.status,
          gender: formData.gender,
          age: formData.age || null,
          size: formData.size || null,
@@ -419,7 +426,7 @@ const handleSubmit = async (e: React.FormEvent) => {
                       <button
                         key={s}
                         type="button"
-                        onClick={() => setFormData({ ...formData, species: s as any })}
+                        onClick={() => setFormData({ ...formData, species: s as any, breed: '', breedOther: '' })}
                         className={`flex-1 py-3 text-xs font-bold rounded-xl border transition-all ${
                           formData.species === s
                           ? 'bg-brand-primary border-brand-primary text-white shadow-md'
@@ -478,6 +485,67 @@ const handleSubmit = async (e: React.FormEvent) => {
                     <option value="small">Pequeño</option>
                     <option value="medium">Mediano</option>
                     <option value="large">Grande</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-500">Raza</label>
+                  <select
+                    className="w-full px-4 py-4 bg-brand-bg rounded-2xl border border-brand-accent outline-none"
+                    value={formData.breed}
+                    onChange={e => setFormData({ ...formData, breed: e.target.value, breedOther: '' })}
+                  >
+                    <option value="">No sé / Mestizo</option>
+                    {(taxonomy?.breeds?.[formData.species] || []).map(b => (
+                      <option key={b} value={b}>{b}</option>
+                    ))}
+                    <option value="__other">Otra (especificar)</option>
+                  </select>
+                  {formData.breed === '__other' && (
+                    <input
+                      type="text"
+                      placeholder="Ej: Caniche toy"
+                      className="w-full px-4 py-4 bg-brand-bg rounded-2xl border border-brand-accent outline-none"
+                      value={formData.breedOther}
+                      onChange={e => setFormData({ ...formData, breedOther: e.target.value })}
+                    />
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-500">Color</label>
+                  <select
+                    className="w-full px-4 py-4 bg-brand-bg rounded-2xl border border-brand-accent outline-none"
+                    value={formData.color}
+                    onChange={e => setFormData({ ...formData, color: e.target.value, colorOther: '' })}
+                  >
+                    <option value="">No sé</option>
+                    {(taxonomy?.colors || []).map(c => (
+                      <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>
+                    ))}
+                    <option value="__other">Otro (especificar)</option>
+                  </select>
+                  {formData.color === '__other' && (
+                    <input
+                      type="text"
+                      placeholder="Ej: Blanco y negro"
+                      className="w-full px-4 py-4 bg-brand-bg rounded-2xl border border-brand-accent outline-none"
+                      value={formData.colorOther}
+                      onChange={e => setFormData({ ...formData, colorOther: e.target.value })}
+                    />
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-500">Pelo</label>
+                  <select
+                    className="w-full px-4 py-4 bg-brand-bg rounded-2xl border border-brand-accent outline-none"
+                    value={formData.coat}
+                    onChange={e => setFormData({ ...formData, coat: e.target.value })}
+                  >
+                    <option value="">No sé</option>
+                    {(taxonomy?.coat_lengths || ['corto', 'medio', 'largo', 'desconocido']).map(c => (
+                      <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>
+                    ))}
                   </select>
                 </div>
               </div>

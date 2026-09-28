@@ -6,6 +6,7 @@ import { sendWhatsAppRegistrationEmail } from '../auth.js';
 import { fetchFbPost } from './fbPostFetcher.js';
 import { geocodeAddress, geocodeAddressDetailed, extractNeighborhoods, isInInfluenceZone } from './geocoding.js';
 import { notifyPetPublication } from './petPublicationNotification.js';
+import { applyPetTaxonomy } from './taxonomy.js';
 import { createPetCase } from './caseService.js';
 import axios from 'axios';
 import { v4 as uuidv4 } from 'uuid';
@@ -1001,6 +1002,7 @@ async function rlConfirm(conv, parsed, intent) {
       [ctx.pet_name || null, ctx.species || 'dog', ctx.location || '', latitude, longitude, ctx.contact || '', ctx.contact2 || null, ctx.description || 'Reportado por WhatsApp como perdida', ctx.gender || null, ctx.breed || null, ctx.color || null, JSON.stringify(neighborhoods)]
     );
     const petId = petResult.rows[0].id;
+    applyPetTaxonomy(petId).catch(e => console.error('Taxonomy normalize error:', e.message));
     await pool.query(`UPDATE whatsapp_conversations SET privacy_notice_at = NOW() WHERE id = $1`, [conv.id]);
     let croppedFaceBuffer = null;
     if (ctx.photo_data) {
@@ -1196,6 +1198,7 @@ async function rsConfirm(conv, parsed, intent) {
       [species, ctx.location || '', latitude, longitude, ctx.contact || '', ctx.contact2 || null, ctx.details ? `Avistaje: ${ctx.details}` : 'Reportado por WhatsApp como avistaje', ctx.gender || null, ctx.breed || null, ctx.color || null, JSON.stringify(neighborhoods)]
     );
     const petId = petResult.rows[0].id;
+    applyPetTaxonomy(petId).catch(e => console.error('Taxonomy normalize error:', e.message));
     await pool.query(`UPDATE whatsapp_conversations SET privacy_notice_at = NOW() WHERE id = $1`, [conv.id]);
     let croppedFaceBuffer = null;
     if (ctx.photo_data) {
@@ -1403,6 +1406,7 @@ async function rfConfirm(conv, parsed, intent) {
       [species, ctx.location || '', latitude, longitude, ctx.contact || '', ctx.contact2 || null, description, ctx.gender || null, ctx.breed || null, ctx.color || null, JSON.stringify(neighborhoods)]
     );
     const petId = petResult.rows[0].id;
+    applyPetTaxonomy(petId).catch(e => console.error('Taxonomy normalize error:', e.message));
     await pool.query(`UPDATE whatsapp_conversations SET privacy_notice_at = NOW() WHERE id = $1`, [conv.id]);
     let croppedFaceBuffer = null;
     if (ctx.photo_data) {
@@ -2559,6 +2563,7 @@ async function fbConfirm(conv, parsed, intent) {
   );
 
   const petId = petResult.rows[0].id;
+  applyPetTaxonomy(petId).catch(e => console.error('Taxonomy normalize error:', e.message));
 
   // Download and save image from Facebook post
   let imgSaved = false;
@@ -2938,6 +2943,7 @@ async function apConfirm(conv, parsed, intent) {
       [ctx.pet_name || null, ctx.species || 'dog', ctx.location || '', ctx.latitude, ctx.longitude, ctx.contact || '', ctx.description || 'En adopción — difusión particular', ctx.user_id || null, JSON.stringify(neighborhoods)]
     );
 const petId = petResult.rows[0].id;
+applyPetTaxonomy(petId).catch(e => console.error('Taxonomy normalize error:', e.message));
 
     await pool.query(`UPDATE whatsapp_conversations SET privacy_notice_at = NOW() WHERE id = $1`, [conv.id]);
 

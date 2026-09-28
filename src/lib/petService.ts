@@ -173,6 +173,7 @@ export interface PetSearchFilters {
   color?: string;
   age_group?: string;
   coat?: string;
+  status?: string;
 }
 
 export const searchPets = async (filters: PetSearchFilters): Promise<Pet[]> => {

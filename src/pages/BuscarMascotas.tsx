@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Search, Loader2, SlidersHorizontal, PawPrint } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { getPetTaxonomy, searchPets, Pet, PetStatus } from '@/src/lib/petService';
+import { getPetTaxonomy, searchPets, Pet, PetStatus, PetTaxonomy } from '@/src/lib/petService';
 import PetCard from '@/src/components/PetCard';
 import { cn } from '@/src/lib/utils';
 import { Helmet } from 'react-helmet-async';
@@ -15,14 +15,6 @@ const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: PetStatus.TRANSITADA, label: 'En tránsito' },
 ];
 
-const STATUS_VALUES: Record<string, string[]> = {
-  [PetStatus.LOST]: [PetStatus.LOST],
-  [PetStatus.FOR_ADOPTION_SIMPLE]: [PetStatus.FOR_ADOPTION, PetStatus.FOR_ADOPTION_SIMPLE],
-  [PetStatus.RETAINED]: [PetStatus.RETAINED],
-  [PetStatus.SIGHTED]: [PetStatus.SIGHTED],
-  [PetStatus.TRANSITADA]: [PetStatus.TRANSITADA],
-};
-
 export default function BuscarMascotas() {
   const [species, setSpecies] = useState('all');
   const [breed, setBreed] = useState('all');
@@ -34,20 +26,12 @@ export default function BuscarMascotas() {
   const [textQuery, setTextQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
 
-  const [taxonomy, setTaxonomy] = useState<{ breeds: string[]; sizes: string[]; colors: string[]; coat_lengths: string[]; age_groups: string[] } | null>(null);
+  const [taxonomy, setTaxonomy] = useState<PetTaxonomy | null>(null);
   const [pets, setPets] = useState<Pet[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getPetTaxonomy().then(t => {
-      setTaxonomy({
-        breeds: [...t.breeds.dog, ...t.breeds.cat, ...t.breeds.other],
-        sizes: t.sizes,
-        colors: t.colors,
-        coat_lengths: t.coat_lengths,
-        age_groups: t.age_groups,
-      });
-    }).catch(() => setTaxonomy(null));
+    getPetTaxonomy().then(setTaxonomy).catch(() => setTaxonomy(null));
   }, []);
 
   useEffect(() => {
@@ -61,15 +45,12 @@ export default function BuscarMascotas() {
         if (color !== 'all') filters.color = color;
         if (ageGroup !== 'all') filters.age_group = ageGroup;
         if (coat !== 'all') filters.coat = coat;
+        if (status !== 'all') filters.status = status;
         const results = await searchPets(filters);
         let filtered = results;
-        if (status !== 'all') {
-          const vals = STATUS_VALUES[status] || [status];
-          filtered = filtered.filter(p => vals.includes(p.status));
-        }
         if (textQuery.trim()) {
           const q = textQuery.toLowerCase();
-          filtered = results.filter(p =>
+          filtered = filtered.filter(p =>
             (p.name && p.name.toLowerCase().includes(q)) ||
             (p.breed && p.breed.toLowerCase().includes(q)) ||
             (p.color && p.color.toLowerCase().includes(q)) ||
@@ -88,7 +69,9 @@ export default function BuscarMascotas() {
     return () => clearTimeout(t);
   }, [species, breed, size, color, ageGroup, coat, status, textQuery]);
 
-  const availableBreeds = taxonomy?.breeds || [];
+  const availableBreeds = species === 'all'
+    ? [...(taxonomy?.breeds.dog || []), ...(taxonomy?.breeds.cat || []), ...(taxonomy?.breeds.other || [])]
+    : (taxonomy?.breeds?.[species as keyof PetTaxonomy['breeds']] || []);
   const selectCls = "w-full px-3 py-2.5 rounded-xl border border-brand-accent bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary transition-all";
 
   return (

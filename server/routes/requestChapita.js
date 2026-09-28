@@ -4,6 +4,7 @@ import { generateToken, hashPassword, verifyToken, sendVerificationEmail, genera
 import { sendPushToAdmins } from '../services/pushService.js';
 import { enqueue } from '../services/phoneRelayService.js';
 import { normalizePhone } from '../services/phoneUtils.js';
+import { applyPetTaxonomy } from '../services/taxonomy.js';
 import { v4 as uuidv4 } from 'uuid';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'change-me-in-production';
@@ -198,6 +199,8 @@ router.post('/', async (req, res) => {
       }
 
       await client.query('COMMIT');
+
+      applyPetTaxonomy(newPet.id).catch(e => console.error('Taxonomy normalize error:', e));
 
       // Notificar al admin
       const userName = userData?.displayName || userData?.email?.split('@')[0] || 'Usuario';

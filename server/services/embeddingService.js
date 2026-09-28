@@ -124,6 +124,48 @@ async function saveAnimalDetection(table, id, attrs) {
   );
 }
 
+// Rellena breed/color/coat normalizados desde la clasificación CLIP cuando
+// están vacíos. Umbrales conservadores: solo alta confianza.
+async function fillNormalizedFromImage(petId, attrs) {
+  const { normalizeBreedStrict, normalizeColor, normalizeCoatLength } = await import('./taxonomy.js');
+  const sets = [];
+  const params = [];
+  const cur = await pool.query(
+    'SELECT breed_normalized, color_normalized, coat_length FROM pets WHERE id = $1',
+    [petId]
+  );
+  const row = cur.rows[0];
+  if (!row) return;
+
+  let breedNorm = row.breed_normalized;
+  if (!breedNorm && attrs.breed && (attrs.breedScore || 0) >= 0.5) {
+    breedNorm = await normalizeBreedStrict(attrs.species, attrs.breed);
+    if (breedNorm && breedNorm !== 'Mestizo') {
+      sets.push(`breed_normalized = $${sets.length + 1}`);
+      params.push(breedNorm);
+    } else {
+      breedNorm = null;
+    }
+  }
+  if (!row.color_normalized && attrs.color && (attrs.colorScore || 0) >= 0.5) {
+    const colorNorm = normalizeColor(attrs.color);
+    if (colorNorm && colorNorm !== 'desconocido') {
+      sets.push(`color_normalized = $${sets.length + 1}`);
+      params.push(colorNorm);
+    }
+  }
+  if (!row.coat_length && breedNorm) {
+    const coat = normalizeCoatLength(breedNorm);
+    if (coat && coat !== 'desconocido') {
+      sets.push(`coat_length = $${sets.length + 1}`);
+      params.push(coat);
+    }
+  }
+  if (sets.length === 0) return;
+  params.push(petId);
+  await pool.query(`UPDATE pets SET ${sets.join(', ')} WHERE id = $${params.length}`, params);
+}
+
 async function saveEmbedding(table, id, embedding, embeddingType = 'full') {
   try {
     await pool.query(
@@ -237,6 +279,10 @@ export async function embedAndMatch(table, id, { species, status, imageBuffer, c
     if (srcAttrs) {
       console.log(`[embedAndMatch] CLIP: ${srcAttrs.detected ? (srcAttrs.species + ' ' + (srcAttrs.speciesScore * 100).toFixed(0) + '%') : 'no animal'}`);
       await saveAnimalDetection(table, id, srcAttrs);
+      // La IA rellena facetados vacíos (nunca pisa dato humano/taxonomía).
+      if (table === 'pets' && srcAttrs.detected) {
+        await fillNormalizedFromImage(id, srcAttrs).catch(e => console.warn('[embedAndMatch] fillNormalized error:', e.message));
+      }
     }
   } catch (err) {
     console.warn('[embedAndMatch] classifyPetAttributes error:', err.message);
