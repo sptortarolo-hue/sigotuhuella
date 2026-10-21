@@ -598,7 +598,11 @@ Me gustaría obtener más información.`;
               const contact = getPublicContact(pet);
               if (contact.type === 'phone') {
                 return (
-                  <div className="flex gap-3">
+                  <div>
+                    <p className="text-center text-sm text-gray-600 mb-3 break-words">
+                      {pet.contact_info}{pet.contact_info_2 ? ` · ${pet.contact_info_2}` : ''}
+                    </p>
+                    <div className="flex gap-3">
                     <button
                       onClick={() => contactWhatsApp('contact_info')}
                       className="flex-1 py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-md bg-emerald-500 text-white hover:bg-emerald-600"
@@ -615,6 +619,7 @@ Me gustaría obtener más información.`;
                         <span className="text-sm">Contactar 2</span>
                       </button>
                     )}
+                    </div>
                   </div>
                 );
               }
