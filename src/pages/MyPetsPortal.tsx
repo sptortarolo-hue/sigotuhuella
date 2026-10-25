@@ -12,11 +12,12 @@ import {
   PawPrint, Plus, Loader2, X, Save, Dog, Cat, Heart,
   Syringe, Scissors, Bug, Weight, Calendar, Sparkles, ChevronRight,
   QrCode, ShieldCheck, Share2, Phone, Check, Clock, AlertTriangle, User,
-  Trash2,
+  Trash2, Megaphone,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import QrClaimModal from '@/src/components/QrClaimModal';
 import { PhoneInput } from '@/src/components/PhoneInput';
+import PublishAdoptionModal from '@/src/components/PublishAdoptionModal';
 
 const SPECIES_OPTIONS = [
   { value: 'dog', label: 'Perro', icon: <Dog className="w-5 h-5" /> },
@@ -102,6 +103,8 @@ export default function MyPetsPortal() {
   const [shareSelectedPets, setShareSelectedPets] = useState<Set<string>>(new Set());
   const [showAdoptionModal, setShowAdoptionModal] = useState(false);
   const [adoptionPet, setAdoptionPet] = useState<any>(null);
+  const [publishAdoptionPet, setPublishAdoptionPet] = useState<any>(null);
+  const [publishStartAtOffer, setPublishStartAtOffer] = useState(false);
   const [adopterName, setAdopterName] = useState('');
   const [adopterPhone, setAdopterPhone] = useState('');
   const [adopterPhoneValid, setAdopterPhoneValid] = useState(false);
@@ -192,10 +195,12 @@ export default function MyPetsPortal() {
       if (avatarData) { payload.avatar_image = avatarData; payload.avatar_mime_type = avatarMime; }
       if (payload.weight_kg === '') payload.weight_kg = null;
 
+      let createdPet: any = null;
       if (editingId) {
         await api.myPets.update(editingId, payload);
       } else {
-        await api.myPets.create(payload);
+        const res = await api.myPets.create(payload);
+        createdPet = res?.myPet;
       }
       setShowForm(false);
       setEditingId(null);
@@ -203,6 +208,11 @@ export default function MyPetsPortal() {
       setAvatarFile(null);
       setAvatarPreview(null);
       await fetchPets();
+      // Mascota cargada para adopción: ofrecer publicarla en la app
+      if (createdPet && !editingId && payload.pet_type === 'adoption') {
+        setPublishAdoptionPet(createdPet);
+        setPublishStartAtOffer(true);
+      }
     } catch (e) { console.error(e); }
     finally { setFormLoading(false); }
   };
@@ -547,6 +557,21 @@ export default function MyPetsPortal() {
                       <span className="text-[10px] sm:text-xs px-2 py-0.5 bg-brand-accent text-gray-500 rounded-full">+{pet.personality_tags.length - 4}</span>
                     )}
                   </div>
+                )}
+                {pet.adoption_pet_id ? (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); navigate(`/pet/${pet.adoption_pet_id}`); }}
+                    className="w-full mb-3 py-2 bg-emerald-50 text-emerald-700 rounded-xl text-xs font-bold flex items-center justify-center gap-2 hover:bg-emerald-100 transition-colors border border-emerald-200"
+                  >
+                    <Check className="w-3.5 h-3.5" /> Ver publicación en adopción
+                  </button>
+                ) : ['foster', 'adoption'].includes(pet.pet_type) && !pet.has_pending_adoption && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setPublishAdoptionPet(pet); setPublishStartAtOffer(false); }}
+                    className="w-full mb-3 py-2 bg-brand-primary/10 text-brand-primary rounded-xl text-xs font-bold flex items-center justify-center gap-2 hover:bg-brand-primary/20 transition-colors border border-brand-accent"
+                  >
+                    <Megaphone className="w-3.5 h-3.5" /> Publicar en adopción
+                  </button>
                 )}
                 {['foster', 'adoption'].includes(pet.pet_type) && !pet.has_pending_adoption && (
                   <button
@@ -1023,6 +1048,18 @@ hover:border-brand-primary bg-brand-bg flex items-center justify-center overflow
               )}
             </motion.div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* PUBLICAR EN ADOPCIÓN (ofrecimiento al crear / botón desde la tarjeta) */}
+      <AnimatePresence>
+        {publishAdoptionPet && (
+          <PublishAdoptionModal
+            pet={publishAdoptionPet}
+            startAtOffer={publishStartAtOffer}
+            onClose={() => { setPublishAdoptionPet(null); setPublishStartAtOffer(false); }}
+            onPublished={async () => { await fetchPets(); }}
+          />
         )}
       </AnimatePresence>
 

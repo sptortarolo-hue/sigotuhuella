@@ -12,13 +12,14 @@ import {
   PawPrint, Loader2, Syringe, Scissors, Bug, Weight,
   Calendar, Plus, X, Save, Camera, Trash2, Sparkles, Heart,
   Dog, Cat, Edit3, Image as ImageIcon, Activity, Clock,
-  QrCode, Share2, Stethoscope, Copy, Check, FileText, Play, AlertTriangle, Download, HeartHandshake, MapPin, ShieldCheck,
+  QrCode, Share2, Stethoscope, Copy, Check, FileText, Play, AlertTriangle, Download, HeartHandshake, MapPin, ShieldCheck, Megaphone,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import QRCode from 'qrcode';
 import HealthTips from '@/src/components/HealthTips';
 import ReunionModal from '@/src/components/ReunionModal';
 import { PhoneInput } from '@/src/components/PhoneInput';
+import PublishAdoptionModal from '@/src/components/PublishAdoptionModal';
 
 const EVENT_TYPES = [
   { value: 'birthday', label: 'Cumpleaños', icon: '🎂' },
@@ -163,6 +164,7 @@ export default function MyPetDetail() {
   const [showReunionModal, setShowReunionModal] = useState(false);
   const [showQrProfileModal, setShowQrProfileModal] = useState(false);
   const [showAdoptionGiveModal, setShowAdoptionGiveModal] = useState(false);
+  const [showPublishAdoptionModal, setShowPublishAdoptionModal] = useState(false);
   const [adopterName, setAdopterName] = useState('');
   const [adopterPhone, setAdopterPhone] = useState('');
   const [adopterPhoneValid, setAdopterPhoneValid] = useState(false);
@@ -802,6 +804,20 @@ export default function MyPetDetail() {
           )}
         </div>
       </div>
+
+      {pet.adoption_pet_id ? (
+        <Link to={`/pet/${pet.adoption_pet_id}`}
+          className="block w-full mb-6 py-3 bg-emerald-50 text-emerald-700 rounded-xl text-sm font-bold text-center border border-emerald-200 hover:bg-emerald-100 transition-colors"
+        >
+          Ver publicación en adopción
+        </Link>
+      ) : ['foster', 'adoption'].includes(pet.pet_type) && !pet.has_pending_adoption && (
+        <button onClick={() => setShowPublishAdoptionModal(true)}
+          className="w-full mb-6 py-3 bg-brand-primary/10 text-brand-primary rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-brand-primary/20 transition-colors border border-brand-accent"
+        >
+          <Megaphone className="w-4 h-4" /> Publicar en adopción
+        </button>
+      )}
 
       {['foster', 'adoption'].includes(pet.pet_type) && !pet.has_pending_adoption && (
         <button onClick={() => { setShowAdoptionGiveModal(true); setAdoptionGiveDone(false); setAdopterName(''); setAdopterPhone(''); }}
@@ -1781,6 +1797,16 @@ export default function MyPetDetail() {
               )}
             </motion.div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showPublishAdoptionModal && (
+          <PublishAdoptionModal
+            pet={{ id: id!, name: pet.name, species: pet.species, bio: pet.bio, behavior_notes: pet.behavior_notes, avatar_image: pet.avatar_image }}
+            onClose={() => setShowPublishAdoptionModal(false)}
+            onPublished={async () => { setShowPublishAdoptionModal(false); await fetchPet(); }}
+          />
         )}
       </AnimatePresence>
 

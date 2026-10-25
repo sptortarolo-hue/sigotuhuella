@@ -1261,6 +1261,167 @@ router.post('/:id/report-lost', requireAuth, async (req, res) => {
   }
 });
 
+// POST /:id/publish-adoption — publicar el perfil digital como adopción en la app
+// (crea la fila pública pets en for_adoption / for_adoption_simple vinculada al perfil,
+//  copiando solo las fotos elegidas por el dueño)
+router.post('/:id/publish-adoption', requireAuth, async (req, res) => {
+  const { id } = req.params;
+  const { location, phone, kind, photoIds, includeAvatar } = req.body;
+
+  const access = await canEditMyPet(req.user.id, id);
+  if (!access.allowed) {
+    return res.status(404).json({ error: 'Mascota no encontrada' });
+  }
+  if (!location || !location.trim()) {
+    return res.status(400).json({ error: 'La ubicación es obligatoria' });
+  }
+
+  const selectedPhotoIds = Array.isArray(photoIds)
+    ? photoIds.filter((p) => typeof p === 'string' && p.length > 0).slice(0, 20)
+    : [];
+  if (!includeAvatar && selectedPhotoIds.length === 0) {
+    return res.status(400).json({ error: 'Seleccioná al menos una foto' });
+  }
+
+  const status = kind === 'simple' ? 'for_adoption_simple' : 'for_adoption';
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const myPetResult = await client.query(
+      'SELECT * FROM my_pets WHERE id = $1',
+      [id]
+    );
+    if (myPetResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Mascota no encontrada' });
+    }
+    const mp = myPetResult.rows[0];
+
+    // Si el perfil tiene una adopción gestionada en curso, no se puede republicar
+    const pendingAssign = await client.query(
+      `SELECT aa.id FROM adoption_assignments aa
+       JOIN pets p ON p.id = aa.pet_id
+       WHERE p.my_pet_id = $1 AND aa.status = 'pending_adopter'
+       LIMIT 1`,
+      [id]
+    );
+    if (pendingAssign.rows.length > 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Esta mascota tiene una adopción en curso. Resolvela antes de volver a publicar.' });
+    }
+
+    // Ya publicada: no duplicar
+    const existingPub = await client.query(
+      `SELECT id FROM pets
+       WHERE my_pet_id = $1 AND status IN ('for_adoption', 'for_adoption_simple')
+       LIMIT 1`,
+      [id]
+    );
+    if (existingPub.rows.length > 0) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: 'Esta mascota ya tiene una publicación en adopción activa', pet_id: existingPub.rows[0].id });
+    }
+
+    // Descripción = bio + comportamiento (igual que report-lost)
+    const descParts = [];
+    if (mp.bio) descParts.push(mp.bio);
+    if (mp.behavior_notes) descParts.push('🐕 Comportamiento: ' + mp.behavior_notes);
+    const description = descParts.join('\n\n');
+
+    // Edad calculada desde birth_date
+    let age = null;
+    if (mp.birth_date) {
+      const birth = new Date(mp.birth_date);
+      const now = new Date();
+      let years = now.getFullYear() - birth.getFullYear();
+      let months = now.getMonth() - birth.getMonth();
+      if (months < 0) { years--; months += 12; }
+      if (years === 0) age = `${months} mes${months !== 1 ? 'es' : ''}`;
+      else if (months === 0) age = `${years} año${years !== 1 ? 's' : ''}`;
+      else age = `${years}a ${months}m`;
+    }
+
+    const petResult = await client.query(
+      `INSERT INTO pets (species, name, breed, color, gender, age, description, location, contact_info, status, created_by, my_pet_id, is_admin_verified, is_vaccinated, is_sterilized, is_dewormed, neighborhoods)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,false,$13,$14,$15,$16)
+       RETURNING *`,
+      [
+        mp.species, mp.name, mp.breed || null, mp.color || null,
+        mp.gender || 'unknown', age, description, location.trim(),
+        phone || req.user.phone || '', req.user.id, id,
+        mp.is_vaccinated || false, mp.is_sterilized || false, mp.is_dewormed || false,
+        JSON.stringify(extractNeighborhoods(location.trim())),
+      ]
+    );
+    const pet = petResult.rows[0];
+
+    // Copiar solo las fotos elegidas: avatar primero si se incluyó
+    if (includeAvatar && mp.avatar_image && mp.avatar_mime_type) {
+      await client.query(
+        'INSERT INTO pet_images (pet_id, image_data, mime_type, crop_x, crop_y) VALUES ($1, $2, $3, $4, $5)',
+        [pet.id, mp.avatar_image, mp.avatar_mime_type, mp.crop_x ?? 0.5, mp.crop_y ?? 0.5]
+      );
+    }
+    for (const photoId of selectedPhotoIds) {
+      const photoRes = await client.query(
+        'SELECT image_data, mime_type, crop_x, crop_y FROM my_pet_photos WHERE id = $1 AND my_pet_id = $2',
+        [photoId, id]
+      );
+      if (photoRes.rows[0]) {
+        await client.query(
+          'INSERT INTO pet_images (pet_id, image_data, mime_type, crop_x, crop_y) VALUES ($1, $2, $3, $4, $5)',
+          [pet.id, photoRes.rows[0].image_data, photoRes.rows[0].mime_type, photoRes.rows[0].crop_x ?? 0.5, photoRes.rows[0].crop_y ?? 0.5]
+        );
+      }
+    }
+
+    // Back-link: la publicación vigente de este perfil
+    await client.query(
+      'UPDATE my_pets SET adoption_pet_id = $1 WHERE id = $2',
+      [pet.id, id]
+    );
+
+    await client.query('COMMIT');
+
+    const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar';
+    sendAdminNotificationEmail(
+      '🐾 Nueva publicación en adopción desde perfil digital',
+      `<p style="font-size:16px;margin-bottom:16px;"><strong>${req.user.display_name || req.user.email}</strong> publicó en adopción a <strong>${mp.name}</strong> desde su perfil digital.</p>
+       <table style="width:100%;border-collapse:collapse;margin-bottom:12px;">
+         <tr><td style="padding:8px;border:1px solid #e2e8f0;font-weight:bold;">Especie</td><td style="padding:8px;border:1px solid #e2e8f0;">${mp.species}</td></tr>
+         <tr><td style="padding:8px;border:1px solid #e2e8f0;font-weight:bold;">Nombre</td><td style="padding:8px;border:1px solid #e2e8f0;">${mp.name}</td></tr>
+         <tr><td style="padding:8px;border:1px solid #e2e8f0;font-weight:bold;">Descripción</td><td style="padding:8px;border:1px solid #e2e8f0;">${description}</td></tr>
+         <tr><td style="padding:8px;border:1px solid #e2e8f0;font-weight:bold;">Ubicación</td><td style="padding:8px;border:1px solid #e2e8f0;">${location}</td></tr>
+         <tr><td style="padding:8px;border:1px solid #e2e8f0;font-weight:bold;">Tipo</td><td style="padding:8px;border:1px solid #e2e8f0;">${kind === 'simple' ? 'Solo difusión' : 'Gestionada'}</td></tr>
+       </table>
+       <p style="text-align:center;margin-top:16px;">
+         <a href="${frontendUrl}/pet/${pet.id}" style="background-color:#3b82f6;color:white;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:bold;">Ver publicación</a>
+       </p>`
+    ).catch(err => console.error('send admin email error:', err));
+
+    sendPushToAdmins({
+      title: '🐾 En adopción',
+      body: `${mp.name} publicado en adopción en ${location}`,
+      url: `${frontendUrl}/pet/${pet.id}`,
+    }).catch(() => {});
+
+    // Taxonomía normalizada (talle/color/raza). El broadcast WA/FB de adopciones
+    // ya toma cualquier for_adoption/for_adoption_simple: la difusión es automática.
+    try { await applyPetTaxonomy(pet.id); } catch (e) { console.error('Taxonomy normalize error:', e); }
+
+    res.status(201).json({ pet });
+  } catch (err) {
+    try { await client.query('ROLLBACK'); } catch { /* sin transacción abierta */ }
+    console.error('publish-adoption error:', err);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Error al publicar la adopción' });
+    }
+  } finally {
+    client.release();
+  }
+});
+
 // PUT /:id/share — compartir my_pet con userId existente (dueño)
 router.put('/:id/share', requireAuth, async (req, res) => {
   const { id } = req.params;

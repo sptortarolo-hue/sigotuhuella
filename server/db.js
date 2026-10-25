@@ -1706,6 +1706,14 @@ export async function initDb() {
         )
     `, 'my_pets backfill transferred_at para adopciones completadas');
 
+    // ─── Publicación en adopción desde el perfil digital ───
+    // Espejo de lost_report_id: vincula el my_pet con la fila pública (pets)
+    // creada al publicar en adopción. Sirve para saber si ya está publicada
+    // y para linkear "Ver publicación" desde el portal.
+    await migrate(client, `
+      ALTER TABLE my_pets ADD COLUMN IF NOT EXISTS adoption_pet_id UUID REFERENCES pets(id) ON DELETE SET NULL
+    `, 'my_pets adoption_pet_id');
+
     // ─── Fix: pets duplicados por requestChapita (created_by distinto) ──
     // requestChapita buscaba la fila pública existente por (my_pet_id, created_by).
     // Si la fila original la creó otra persona, no la encontraba y creaba una
