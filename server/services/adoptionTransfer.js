@@ -15,6 +15,10 @@ export async function transferToAdopter(client, assignment, adopterUserId) {
       [adopterUserId, assignment.my_pet_id]
     );
     myPet = updRes.rows[0];
+    if (!myPet) {
+      // El perfil vinculado ya no existe (borrado): se crea uno mínimo abajo.
+      console.warn(`[adoptionTransfer] my_pet ${assignment.my_pet_id} no encontrado para assignment ${assignment.id}: se crea perfil mínimo`);
+    }
   }
 
   if (myPet) {

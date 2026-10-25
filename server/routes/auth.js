@@ -64,7 +64,7 @@ router.post('/register', async (req, res) => {
          JOIN pets p ON p.id = aa.pet_id
          WHERE (aa.status = 'pending_adopter' OR (aa.status = 'completed' AND aa.adopter_id IS NULL))
            AND ((LOWER(aa.adopter_email) = LOWER($1) AND $1 IS NOT NULL AND $1 <> '')
-             OR ($2 IS NOT NULL AND regexp_replace(aa.adopter_phone, '[^0-9]', '', 'g') = $2))`,
+             OR ($2::text IS NOT NULL AND regexp_replace(aa.adopter_phone, '[^0-9]', '', 'g') = $2::text))`,
         [email, normalizedPhone]
       );
       for (const ass of pendingAdoptions.rows) {

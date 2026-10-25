@@ -72,9 +72,11 @@ router.post('/return/:token', requireAuth, async (req, res) => {
       }
     }).catch(() => {});
   } catch (err) {
-    await client.query('ROLLBACK');
+    try { await client.query('ROLLBACK'); } catch { /* sin transaccion abierta */ }
     console.error('adoption return error:', err);
-    res.status(500).json({ error: 'Error al procesar devolución' });
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Error al procesar devolución' });
+    }
   } finally {
     client.release();
   }
@@ -141,30 +143,48 @@ router.post('/claim/:token', requireAuth, async (req, res) => {
       );
     }
 
+    // share_token dentro de la transacción: evita un fallo post-COMMIT que
+    // responderia 500 con los datos ya guardados
+    let shareToken = null;
+    if (assignment.qr_id) {
+      const qrRes = await client.query(
+        'SELECT share_token FROM qr_identifiers WHERE id = $1',
+        [assignment.qr_id]
+      );
+      shareToken = qrRes.rows[0]?.share_token || null;
+    }
+
     await client.query('COMMIT');
-    res.json({ success: true, myPet, share_token: assignment.qr_id ? (await pool.query('SELECT share_token FROM qr_identifiers WHERE id = $1', [assignment.qr_id])).rows[0]?.share_token : null });
+    res.json({ success: true, myPet, share_token: shareToken });
 
-    // Notificar al adoptante
-    notifyUser(req.user, {
-      subject: '🎉 Adopción confirmada — Sigo Tu Huella',
-      textMessage: `🎉 Felicidades ${assignment.adopter_name}! Ya sos el dueño oficial de ${assignment.pet_name} en Sigo Tu Huella.\n\nPodés ver su perfil, gestionar fotos, salud y más desde "Mis mascotas" en la app.\n\n${FRONTEND_URL}/mi-mascota/${myPet.id}`,
-      sendEmailFn: null,
-    }).catch(() => {});
+    // Notificar al adoptante y al dueño: aislado para que un fallo acá NO
+    // pueda responder 500 cuando la respuesta ya fue enviada
+    try {
+      notifyUser(req.user, {
+        subject: '🎉 Adopción confirmada — Sigo Tu Huella',
+        textMessage: `🎉 Felicidades ${assignment.adopter_name}! Ya sos el dueño oficial de ${assignment.pet_name} en Sigo Tu Huella.\n\nPodés ver su perfil, gestionar fotos, salud y más desde "Mis mascotas" en la app.\n\n${FRONTEND_URL}/mi-mascota/${myPet.id}`,
+        sendEmailFn: null,
+      }).catch(() => {});
 
-    // Notificar al dueño
-    pool.query('SELECT id, email, display_name, phone, notification_preference FROM users WHERE id = $1', [assignment.inviter_id]).then(ownerRes => {
-      if (ownerRes.rows[0]) {
-        notifyUser(ownerRes.rows[0], {
-          subject: '✅ Adopción confirmada — Sigo Tu Huella',
-          textMessage: `✅ ${assignment.adopter_name} confirmó la adopción de ${assignment.pet_name}. Ya es oficial.\n\nLa mascota ya no aparece en tu lista de pendientes.`,
-          sendEmailFn: null,
-        }).catch(() => {});
-      }
-    }).catch(() => {});
+      // Notificar al dueño
+      pool.query('SELECT id, email, display_name, phone, notification_preference FROM users WHERE id = $1', [assignment.inviter_id]).then(ownerRes => {
+        if (ownerRes.rows[0]) {
+          notifyUser(ownerRes.rows[0], {
+            subject: '✅ Adopción confirmada — Sigo Tu Huella',
+            textMessage: `✅ ${assignment.adopter_name} confirmó la adopción de ${assignment.pet_name}. Ya es oficial.\n\nLa mascota ya no aparece en tu lista de pendientes.`,
+            sendEmailFn: null,
+          }).catch(() => {});
+        }
+      }).catch(() => {});
+    } catch (notifyErr) {
+      console.warn('adoption claim: notificacion fallo (no afecta la adopcion):', notifyErr.message);
+    }
   } catch (err) {
-    await client.query('ROLLBACK');
+    try { await client.query('ROLLBACK'); } catch { /* sin transaccion abierta */ }
     console.error('adoption claim error:', err);
-    res.status(500).json({ error: 'Error al reclamar adopción' });
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Error al reclamar adopción' });
+    }
   } finally {
     client.release();
   }
@@ -196,7 +216,7 @@ router.post('/confirm/:token', requireAuth, async (req, res) => {
     const adopterRes = await client.query(
       `SELECT id, email, display_name, phone, notification_preference FROM users
        WHERE (LOWER(email) = LOWER($1) AND $1 IS NOT NULL AND $1 <> '')
-          OR ($2 IS NOT NULL AND phone = $2)
+          OR ($2::varchar IS NOT NULL AND phone = $2)
        LIMIT 1`,
       [assignment.adopter_email, normalizedAdopterPhone]
     );
@@ -237,25 +257,43 @@ router.post('/confirm/:token', requireAuth, async (req, res) => {
       [assignment.pet_id, assignment.pet_status, req.user.id]
     );
 
-    await client.query('COMMIT');
-    res.json({ success: true, myPet, share_token: assignment.qr_id ? (await pool.query('SELECT share_token FROM qr_identifiers WHERE id = $1', [assignment.qr_id])).rows[0]?.share_token : null });
+    // share_token dentro de la transacción: evita un fallo post-COMMIT que
+    // responderia 500 con los datos ya guardados
+    let shareToken = null;
+    if (assignment.qr_id) {
+      const qrRes = await client.query(
+        'SELECT share_token FROM qr_identifiers WHERE id = $1',
+        [assignment.qr_id]
+      );
+      shareToken = qrRes.rows[0]?.share_token || null;
+    }
 
-    // Notificar al adoptante
-    const textMsg = `✅ El dueño confirmó la adopción de ${assignment.pet_name}. Ya es oficial y quedó asociada a ${adopter ? 'tu cuenta' : 'los datos que dejaste'}.`;
-    if (adopter) {
-      notifyUser(adopter, {
-        subject: '✅ Adopción confirmada — Sigo Tu Huella',
-        textMessage: textMsg,
-        sendEmailFn: null,
-      }).catch(() => {});
-    } else if (assignment.adopter_phone) {
-      const normalized = normalizePhone(assignment.adopter_phone);
-      if (normalized) enqueue(normalized, textMsg).catch(() => {});
+    await client.query('COMMIT');
+    res.json({ success: true, myPet, share_token: shareToken });
+
+    // Notificar al adoptante: aislado para que un fallo acá NO pueda
+    // responder 500 cuando la respuesta ya fue enviada
+    try {
+      const textMsg = `✅ El dueño confirmó la adopción de ${assignment.pet_name}. Ya es oficial y quedó asociada a ${adopter ? 'tu cuenta' : 'los datos que dejaste'}.`;
+      if (adopter) {
+        notifyUser(adopter, {
+          subject: '✅ Adopción confirmada — Sigo Tu Huella',
+          textMessage: textMsg,
+          sendEmailFn: null,
+        }).catch(() => {});
+      } else if (assignment.adopter_phone) {
+        const normalized = normalizePhone(assignment.adopter_phone);
+        if (normalized) enqueue(normalized, textMsg).catch(() => {});
+      }
+    } catch (notifyErr) {
+      console.warn('adoption owner confirm: notificacion fallo (no afecta la adopcion):', notifyErr.message);
     }
   } catch (err) {
-    await client.query('ROLLBACK');
+    try { await client.query('ROLLBACK'); } catch { /* sin transaccion abierta */ }
     console.error('adoption owner confirm error:', err);
-    res.status(500).json({ error: 'Error al confirmar adopción' });
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Error al confirmar adopción' });
+    }
   } finally {
     client.release();
   }
@@ -298,8 +336,8 @@ router.get('/my-pending', requireAuth, async (req, res) => {
        LEFT JOIN qr_identifiers qi ON qi.id = aa.qr_id
        WHERE (aa.adopter_id = $1
           OR (LOWER(aa.adopter_email) = LOWER($2) AND $2 IS NOT NULL AND $2 <> '')
-          OR ($3 IS NOT NULL AND regexp_replace(aa.adopter_phone, '[^0-9]', '', 'g') = $3))
-         AND (aa.status = 'pending_adopter' OR (aa.status = 'completed' AND aa.adopter_id IS NULL))
+          OR ($3::text IS NOT NULL AND regexp_replace(aa.adopter_phone, '[^0-9]', '', 'g') = $3::text))
+          AND (aa.status = 'pending_adopter' OR (aa.status = 'completed' AND aa.adopter_id IS NULL))
        ORDER BY aa.created_at DESC`,
       [req.user.id, user?.email || null, normalizedPhone]
     );
@@ -327,7 +365,10 @@ router.get('/check-token/:token', async (req, res) => {
     }
     const assignment = result.rows[0];
 
-    // Si hay sesión activa, vincular la invitación a la cuenta del adoptante
+    // Si hay sesión activa, vincular la invitación a la cuenta del adoptante.
+    // Solo si esa cuenta coincide con el email/teléfono de la invitación:
+    // antes se vinculaba cualquier sesión abierta y dejaba la invitación
+    // raptada (el adoptante real recibía "fue creada para otra cuenta").
     let authedUserId = null;
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
@@ -337,11 +378,24 @@ router.get('/check-token/:token', async (req, res) => {
       } catch { /* token inválido: ignorar */ }
     }
     if (authedUserId && !assignment.adopter_id) {
-      await pool.query(
-        'UPDATE adoption_assignments SET adopter_id = $1 WHERE id = $2 AND adopter_id IS NULL',
-        [authedUserId, assignment.id]
+      const authedUserRes = await pool.query(
+        'SELECT id, email, phone FROM users WHERE id = $1',
+        [authedUserId]
       );
-      assignment.adopter_id = authedUserId;
+      const authedUser = authedUserRes.rows[0];
+      const normalizedAuthPhone = authedUser?.phone ? normalizePhone(authedUser.phone) : null;
+      const normalizedAssignmentPhone = assignment.adopter_phone ? normalizePhone(assignment.adopter_phone) : null;
+      const emailMatch = !!assignment.adopter_email && !!authedUser?.email
+        && assignment.adopter_email.toLowerCase() === authedUser.email.toLowerCase();
+      const phoneMatch = !!normalizedAuthPhone && !!normalizedAssignmentPhone
+        && normalizedAuthPhone === normalizedAssignmentPhone;
+      if (emailMatch || phoneMatch) {
+        await pool.query(
+          'UPDATE adoption_assignments SET adopter_id = $1 WHERE id = $2 AND adopter_id IS NULL',
+          [authedUserId, assignment.id]
+        );
+        assignment.adopter_id = authedUserId;
+      }
     }
 
     res.json({
