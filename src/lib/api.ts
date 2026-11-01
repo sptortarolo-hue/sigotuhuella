@@ -538,6 +538,8 @@ export const api = {
     layout: (page_w: string, page_h: string) => request(`/qr/layout?page_w=${page_w}&page_h=${page_h}`),
     designSettings: () => request('/qr/design-settings'),
     saveDesignSettings: (data: Record<string, string | number>) => request('/qr/design-settings', { method: 'PUT', body: JSON.stringify(data) }),
+    logoOptions: () => request('/qr/logo-options'),
+    uploadLogoUrl: () => apiUrl('/api/upload/chapita-logo'),
     previewLogoUrl: () => {
       const token = getToken();
       return apiUrl(`/api/qr/preview-logo${token ? `?token=${token}` : ''}`);

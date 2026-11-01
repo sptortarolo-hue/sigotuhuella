@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { api, apiUrl } from '@/src/lib/api';
-import { Save, RotateCcw, Loader2, FileText } from 'lucide-react';
+import { Save, RotateCcw, Loader2, FileText, Upload, Check } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 
 const TAG_PX = 437;
@@ -12,7 +12,14 @@ const DEFAULTS = {
   arc_font_size: 37, arc_color: '#000000', arc_radius: 0.38, arc_start_deg: 200, arc_end_deg: 340,
   bottom_font_size: 35, bottom_color: '#000000',
   logo_scale: 0.55, logo_fade: 8,
+  // '' = logo clásico. Si tiene valor, ruta relativa dentro de public/
+  logo_path: '',
+  // Leyendas: si se vacían, no se dibujan (queda solo el logo)
+  arc_text: 'SI ME VES PERDIDO',
+  bottom_text: 'ESCANEÁ EL QR',
 };
+
+interface LogoOption { path: string; name: string; url: string; isDefault: boolean; }
 
 type Settings = typeof DEFAULTS;
 
@@ -51,6 +58,20 @@ export default function ChapitaEditor({ className }: Props) {
   const [saved, setSaved] = useState(false);
   const [logoUrl, setLogoUrl] = useState('');
   const [qrSvgInner, setQrSvgInner] = useState('');
+  const [logoOptions, setLogoOptions] = useState<LogoOption[]>([]);
+  const [logoOptionsLoading, setLogoOptionsLoading] = useState(true);
+  const [logoUploading, setLogoUploading] = useState(false);
+  // Preview del logo elegido (hasta que se guarde, se ve el del servidor)
+  const [logoOverride, setLogoOverride] = useState<string | null>(null);
+
+  const loadLogoOptions = useCallback(async () => {
+    setLogoOptionsLoading(true);
+    try {
+      const data = await api.qr.logoOptions();
+      setLogoOptions(Array.isArray(data?.options) ? data.options : []);
+    } catch { /* silencioso: el editor sigue funcionando */ }
+    setLogoOptionsLoading(false);
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -59,8 +80,9 @@ export default function ChapitaEditor({ className }: Props) {
         setS(prev => ({ ...prev, ...data }));
       } catch {}
       setLoading(false);
+      loadLogoOptions();
     })();
-  }, []);
+  }, [loadLogoOptions]);
 
   useEffect(() => {
     let cancelled = false;
@@ -103,6 +125,8 @@ export default function ChapitaEditor({ className }: Props) {
       const data = await api.qr.saveDesignSettings(s as any);
       setS(data);
       setSaved(true);
+      setLogoOverride(null);
+      loadLogoOptions();
       const token = localStorage.getItem('token');
       try {
         const res = await fetch(api.qr.previewLogoUrl() + '&t=' + Date.now(), {
@@ -114,7 +138,31 @@ export default function ChapitaEditor({ className }: Props) {
     setSaving(false);
   };
 
-  const handleReset = () => { setS({ ...DEFAULTS }); setSaved(false); };
+  const handleReset = () => { setS({ ...DEFAULTS }); setLogoOverride(null); setSaved(false); };
+
+  const handleSelectLogo = (opt: LogoOption) => {
+    update('logo_path', opt.path);
+    setLogoOverride(apiUrl(opt.url));
+  };
+
+  const handleUploadLogo = async (file: File) => {
+    setLogoUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('logo', file);
+      const res = await fetch(api.qr.uploadLogoUrl(), {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        body: fd,
+      });
+      const data = await res.json();
+      if (!res.ok) { alert(data.error || 'Error al subir el logo'); return; }
+      await loadLogoOptions();
+      // La URL devuelta arranca con /uploads/...; guardamos la ruta sin la barra
+      handleSelectLogo({ path: data.url.replace(/^\//, ''), name: file.name, url: data.url, isDefault: false });
+    } catch { alert('Error al subir el logo'); }
+    setLogoUploading(false);
+  };
 
   const handlePreviewPdf = async () => {
     const token = localStorage.getItem('token');
@@ -143,11 +191,18 @@ export default function ChapitaEditor({ className }: Props) {
   const logoX = useMemo(() => Math.round((TAG_PX - logoSz) / 2), [logoSz]);
   const logoY = useMemo(() => Math.round(HALF - logoSz / 2 + TAG_PX * 0.03), [logoSz]);
   const bottomY = Math.round(TAG_PX * 0.93);
-  const arcChars = useMemo(() => arcText('SI ME VES PERDIDO', HALF, HALF, arcR, s.arc_start_deg, s.arc_end_deg, s.arc_font_size, s.arc_color), [arcR, s.arc_start_deg, s.arc_end_deg, s.arc_font_size, s.arc_color]);
+  const arcChars = useMemo(
+    () => ((s.arc_text || '').trim()
+      ? arcText(s.arc_text, HALF, HALF, arcR, s.arc_start_deg, s.arc_end_deg, s.arc_font_size, s.arc_color)
+      : []),
+    [arcR, s.arc_text, s.arc_start_deg, s.arc_end_deg, s.arc_font_size, s.arc_color],
+  );
+  const bottomText = (s.bottom_text || '').trim();
+  const previewLogo = logoOverride || logoUrl;
 
   if (loading) return <div className="flex justify-center py-10"><Loader2 className="w-8 h-8 animate-spin text-brand-primary" /></div>;
 
-  const Input = ({ label, k, unit, min, max, step, color }: { label: string; k: keyof Settings; unit?: string; min?: number; max?: number; step?: number; color?: boolean }) => (
+  const Input = ({ label, k, unit, min, max, step, color, text }: { label: string; k: keyof Settings; unit?: string; min?: number; max?: number; step?: number; color?: boolean; text?: boolean }) => (
     <div className="flex items-center gap-2">
       <label className="text-xs font-medium text-gray-500 w-36 shrink-0">{label}</label>
       {color ? (
@@ -157,6 +212,10 @@ export default function ChapitaEditor({ className }: Props) {
           <input type="text" value={String(s[k])} onChange={e => update(k, e.target.value)}
             className="w-20 px-2 py-1 rounded-lg border border-brand-accent text-xs font-mono" />
         </div>
+      ) : text ? (
+        <input type="text" value={String(s[k])} onChange={e => update(k, e.target.value)}
+          placeholder="(vacío = sin texto)"
+          className="flex-1 min-w-0 px-3 py-1 rounded-lg border border-brand-accent text-xs" />
       ) : (
         <input type="number" value={String(s[k])} min={min} max={max} step={step || 1}
           onChange={e => update(k, e.target.value)}
@@ -184,16 +243,76 @@ export default function ChapitaEditor({ className }: Props) {
           </div>
           <div>
             <h4 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2">Cara Logo</h4>
-            <div className="space-y-2">
-              <Input label="Texto arco" k="arc_font_size" unit="px" min={10} max={60} />
-              <Input label="Color arco" k="arc_color" color />
-              <Input label="Radio arco" k="arc_radius" min={0.1} max={0.6} step={0.01} />
-              <Input label="Arco inicio" k="arc_start_deg" unit="°" min={0} max={360} />
-              <Input label="Arco fin" k="arc_end_deg" unit="°" min={0} max={360} />
-              <Input label="Tamaño bottom" k="bottom_font_size" unit="px" min={10} max={60} />
-              <Input label="Color bottom" k="bottom_color" color />
-              <Input label="Escala logo" k="logo_scale" min={0.2} max={0.9} step={0.01} />
-              <Input label="Fade logo" k="logo_fade" min={1} max={20} />
+            <div className="space-y-4">
+              {/* ───── Selector de logo ───── */}
+              <div>
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <span className="text-xs font-bold text-brand-primary">Logo impreso</span>
+                  <label className={cn(
+                    'shrink-0 px-3 py-1.5 bg-brand-primary/10 text-brand-primary rounded-lg font-bold text-[10px] flex items-center gap-1 transition-colors',
+                    logoUploading ? 'opacity-60 cursor-wait' : 'cursor-pointer hover:bg-brand-primary/20',
+                  )}>
+                    {logoUploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+                    {logoUploading ? 'Subiendo...' : 'Subir logo'}
+                    <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden"
+                      disabled={logoUploading}
+                      onChange={e => {
+                        const file = e.target.files?.[0];
+                        e.target.value = '';
+                        if (file) handleUploadLogo(file);
+                      }} />
+                  </label>
+                </div>
+
+                {logoOptionsLoading ? (
+                  <div className="flex items-center gap-2 text-xs text-gray-400 py-4">
+                    <Loader2 className="w-3 h-3 animate-spin" /> Cargando logos...
+                  </div>
+                ) : logoOptions.length === 0 ? (
+                  <p className="text-xs text-gray-400 py-3">No se encontraron logos. Subí uno para empezar.</p>
+                ) : (
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                    {logoOptions.map(opt => {
+                      const active = (s.logo_path || '') === opt.path;
+                      return (
+                        <button key={opt.path} type="button" onClick={() => handleSelectLogo(opt)} title={opt.name}
+                          className={cn(
+                            'relative border-2 rounded-xl p-1.5 bg-white transition-all text-left',
+                            active ? 'border-brand-primary ring-2 ring-brand-primary/20' : 'border-brand-accent hover:border-brand-primary/50',
+                          )}>
+                          <img src={apiUrl(opt.url)} alt={opt.name}
+                            className="w-full aspect-square object-contain rounded-lg"
+                            onError={e => { (e.target as HTMLImageElement).style.opacity = '0.15'; }} />
+                          <span className="block mt-1 text-[9px] text-gray-500 truncate">
+                            {opt.isDefault ? 'Predeterminado' : opt.name}
+                          </span>
+                          {active && (
+                            <span className="absolute top-1 right-1 w-4 h-4 bg-brand-primary text-white rounded-full flex items-center justify-center">
+                              <Check className="w-2.5 h-2.5" />
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                <p className="text-[10px] text-gray-400 mt-2">
+                  Elegí el logo de la cara posterior. Podés subir logos de sponsors nuevos sin perder los anteriores.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Input label="Texto arco" k="arc_text" text />
+                <Input label="Texto inferior" k="bottom_text" text />
+                <p className="text-[10px] text-gray-400 pl-38">Dejar vacío = no se imprime (queda solo el logo).</p>
+                <Input label="Color arco" k="arc_color" color />
+                <Input label="Radio arco" k="arc_radius" min={0.1} max={0.6} step={0.01} />
+                <Input label="Arco inicio" k="arc_start_deg" unit="°" min={0} max={360} />
+                <Input label="Arco fin" k="arc_end_deg" unit="°" min={0} max={360} />
+                <Input label="Tamaño bottom" k="bottom_font_size" unit="px" min={10} max={60} />
+                <Input label="Color bottom" k="bottom_color" color />
+                <Input label="Escala logo" k="logo_scale" min={0.2} max={0.9} step={0.01} />
+              </div>
             </div>
           </div>
           <div className="flex gap-3 pt-2">
@@ -245,8 +364,10 @@ export default function ChapitaEditor({ className }: Props) {
                       {c.ch}
                     </text>
                   ))}
-                  {logoUrl && <image href={logoUrl} x={logoX} y={logoY} width={logoSz} height={logoSz} />}
-                  <text x={HALF} y={bottomY} textAnchor="middle" fontFamily="sans-serif" fontSize={s.bottom_font_size} fontWeight="bold" fill={s.bottom_color}>ESCANEÁ EL QR</text>
+                  {previewLogo && <image href={previewLogo} x={logoX} y={logoY} width={logoSz} height={logoSz} />}
+                  {bottomText && (
+                    <text x={HALF} y={bottomY} textAnchor="middle" fontFamily="sans-serif" fontSize={s.bottom_font_size} fontWeight="bold" fill={s.bottom_color}>{bottomText}</text>
+                  )}
                 </svg>
               </div>
             </div>

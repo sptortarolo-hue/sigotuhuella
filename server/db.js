@@ -1325,6 +1325,11 @@ export async function initDb() {
     await migrate(client, `INSERT INTO settings (key, value) VALUES ('chapita_bottom_color', '#000000') ON CONFLICT (key) DO NOTHING`, 'chapita_bottom_color');
     await migrate(client, `INSERT INTO settings (key, value) VALUES ('chapita_logo_scale', '0.55') ON CONFLICT (key) DO NOTHING`, 'chapita_logo_scale');
     await migrate(client, `INSERT INTO settings (key, value) VALUES ('chapita_logo_fade', '8') ON CONFLICT (key) DO NOTHING`, 'chapita_logo_fade');
+    // Vacío = logo por defecto (public/sigotuhuella.jpg). Con valor = ruta relativa dentro de public/ (ej: uploads/chapita-logos/logo-123.png)
+    await migrate(client, `INSERT INTO settings (key, value) VALUES ('chapita_logo_path', '') ON CONFLICT (key) DO NOTHING`, 'chapita_logo_path');
+    // Leyendas de la cara logo. Si se guardan vacías, no se imprimen (queda solo el logo)
+    await migrate(client, `INSERT INTO settings (key, value) VALUES ('chapita_arc_text', 'SI ME VES PERDIDO') ON CONFLICT (key) DO NOTHING`, 'chapita_arc_text');
+    await migrate(client, `INSERT INTO settings (key, value) VALUES ('chapita_bottom_text', 'ESCANEÁ EL QR') ON CONFLICT (key) DO NOTHING`, 'chapita_bottom_text');
 
     await migrate(client, `
       ALTER TABLE whatsapp_groups ADD COLUMN IF NOT EXISTS type VARCHAR(20) DEFAULT 'group'

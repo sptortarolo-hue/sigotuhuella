@@ -6,8 +6,8 @@ import { notifyUser } from '../services/notificationService.js';
 import QRCode from 'qrcode';
 import PDFDocument from 'pdfkit';
 import sharp from 'sharp';
-import { readFileSync } from 'fs';
-import { join, dirname } from 'path';
+import { readFileSync, readdirSync, existsSync } from 'fs';
+import { join, dirname, sep } from 'path';
 import { fileURLToPath } from 'url';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -997,7 +997,17 @@ const CHAPITA_DEFAULTS = {
   arc_font_size: 37, arc_color: '#000000', arc_radius: 0.38, arc_start_deg: 200, arc_end_deg: 340,
   bottom_font_size: 35, bottom_color: '#000000',
   logo_scale: 0.55, logo_fade: 8,
+  // Vacío = logo clásico (public/sigotuhuella.jpg). Si tiene valor, es una ruta
+  // relativa dentro de public/ (ej: uploads/chapita-logos/logo-123.png)
+  logo_path: '',
+  // Leyendas de la cara logo. Vacío = no se imprime (queda solo el logo)
+  arc_text: 'SI ME VES PERDIDO',
+  bottom_text: 'ESCANEÁ EL QR',
 };
+
+// Carpeta pública del front (donde viven los logos servidos por express.static)
+const PUBLIC_DIR = join(__dirname, '..', '..', 'public');
+const DEFAULT_CHAPITA_LOGO = 'sigotuhuella.jpg';
 
 let _chapitaSettingsCache = null;
 let _chapitaSettingsTs = 0;
@@ -1025,6 +1035,10 @@ async function getChapitaSettings() {
       bottom_color: map.chapita_bottom_color || CHAPITA_DEFAULTS.bottom_color,
       logo_scale: parseFloat(map.chapita_logo_scale) || CHAPITA_DEFAULTS.logo_scale,
       logo_fade: parseInt(map.chapita_logo_fade) || CHAPITA_DEFAULTS.logo_fade,
+      logo_path: map.chapita_logo_path || CHAPITA_DEFAULTS.logo_path,
+      // undefined => key ausente en DB => default. '' => el admin la borró a propósito.
+      arc_text: map.chapita_arc_text !== undefined ? map.chapita_arc_text : CHAPITA_DEFAULTS.arc_text,
+      bottom_text: map.chapita_bottom_text !== undefined ? map.chapita_bottom_text : CHAPITA_DEFAULTS.bottom_text,
     };
     _chapitaSettingsTs = now;
   } catch { _chapitaSettingsCache = { ...CHAPITA_DEFAULTS }; }
@@ -1148,6 +1162,45 @@ router.get('/preview-logo', requireAdmin, async (_req, res) => {
   }
 });
 
+// Carpetas (dentro de public/) donde se buscan logos para la cara logo
+const CHAPITA_LOGO_DIRS = ['uploads/chapita-logos', 'uploads/sponsors'];
+
+router.get('/logo-options', requireAdmin, async (_req, res) => {
+  try {
+    const settings = await getChapitaSettings();
+    const seen = new Set();
+    const options = [];
+
+    const push = (opt) => {
+      if (!opt || seen.has(opt.path)) return;
+      seen.add(opt.path);
+      options.push(opt);
+    };
+
+    // Logo clásico: siempre primero y siempre disponible
+    push({ path: DEFAULT_CHAPITA_LOGO, name: 'Sigo Tu Huella (predeterminado)', url: `/${DEFAULT_CHAPITA_LOGO}`, isDefault: true });
+    if (existsSync(join(PUBLIC_DIR, 'qr-logo.png'))) {
+      push({ path: 'qr-logo.png', name: 'Logo QR', url: '/qr-logo.png', isDefault: false });
+    }
+
+    for (const dir of CHAPITA_LOGO_DIRS) {
+      const fullDir = join(PUBLIC_DIR, dir);
+      if (!existsSync(fullDir)) continue;
+      let files = [];
+      try { files = readdirSync(fullDir, { withFileTypes: true }); } catch { continue; }
+      for (const entry of files) {
+        if (!entry.isFile() || !/\.(png|jpe?g|webp)$/i.test(entry.name)) continue;
+        push({ path: `${dir}/${entry.name}`, name: entry.name, url: `/${dir}/${entry.name}`, isDefault: false });
+      }
+    }
+
+    res.json({ current: settings.logo_path || '', options });
+  } catch (err) {
+    console.error('qr logo-options error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get('/preview-pdf', requireAdmin, async (_req, res) => {
   try {
     logoPngPromise = null;
@@ -1189,6 +1242,14 @@ router.get('/preview-pdf', requireAdmin, async (_req, res) => {
   }
 });
 
+function escapeXml(text) {
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 function drawArcTextSvg(text, cx, cy, r, startDeg, endDeg, fontSize, color) {
   const sr = (startDeg * Math.PI) / 180;
   const er = (endDeg * Math.PI) / 180;
@@ -1208,20 +1269,45 @@ function drawArcTextSvg(text, cx, cy, r, startDeg, endDeg, fontSize, color) {
     const x = cx + r * Math.cos(a);
     const y = cy + r * Math.sin(a);
     const rot = Math.atan2(r * Math.cos(a), -r * Math.sin(a)) * 180 / Math.PI;
-    out += `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" transform="rotate(${rot.toFixed(1)},${x.toFixed(1)},${y.toFixed(1)})" text-anchor="middle" dominant-baseline="central" font-family="sans-serif" font-size="${fs}" font-weight="bold" fill="${color}">${text[i]}</text>\n`;
+    out += `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" transform="rotate(${rot.toFixed(1)},${x.toFixed(1)},${y.toFixed(1)})" text-anchor="middle" dominant-baseline="central" font-family="sans-serif" font-size="${fs}" font-weight="bold" fill="${color}">${escapeXml(text[i])}</text>\n`;
   }
   return out;
 }
 
 let logoPngPromise = null;
 
+// Convierte la ruta guardada en settings a un path real dentro de public/.
+// Devuelve null si es inválida (absoluta, con .., apuntando afuera de public/).
+function safePublicPath(relPath) {
+  if (!relPath || typeof relPath !== 'string') return null;
+  const clean = relPath.replace(/^\/+/, '');
+  if (!clean || clean.includes('..') || /^[a-zA-Z]:/.test(clean)) return null;
+  const resolved = join(PUBLIC_DIR, clean);
+  if (resolved !== PUBLIC_DIR && !resolved.startsWith(PUBLIC_DIR + sep)) return null;
+  return resolved;
+}
+
+// Lee el logo elegido; si no existe o es inválido, cae al logo clásico.
+async function readChapitaLogo() {
+  let settings = {};
+  try { settings = await getChapitaSettings(); } catch { /* usar defaults */ }
+  const chosen = safePublicPath(settings.logo_path);
+  const candidates = [chosen, join(PUBLIC_DIR, DEFAULT_CHAPITA_LOGO)].filter(Boolean);
+  for (const path of candidates) {
+    try { return readFileSync(path); } catch { /* probar el siguiente */ }
+  }
+  throw new Error('No se encontró ninguna imagen de logo para la chapita');
+}
+
 async function processLogoPng() {
-  const imgPath = join(__dirname, '..', '..', 'public', 'sigotuhuella.jpg');
-  const img = readFileSync(imgPath);
+  const img = await readChapitaLogo();
   const logoSize = Math.round(TAG_SIZE_PX * 0.55);
 
+  // flatten sobre blanco: los PNG con transparencia dan 4 canales en raw y
+  // romperían la máscara de más abajo. Además el blanco queda como "sin tinta".
   const { data, info } = await sharp(img)
     .resize(logoSize, logoSize)
+    .flatten({ background: { r: 255, g: 255, b: 255 } })
     .raw()
     .toBuffer({ resolveWithObject: true });
 
@@ -1292,10 +1378,18 @@ async function generateLogoPng() {
       const bottomSize = s.bottom_font_size;
       const bottomY = Math.round(TAG_SIZE_PX * 0.93);
 
+      const arcText = (s.arc_text || '').trim();
+      const bottomText = (s.bottom_text || '').trim();
+      const arcSvg = arcText
+        ? drawArcTextSvg(arcText, cx, cx, arcR, s.arc_start_deg, s.arc_end_deg, arcSize, s.arc_color) + '\n'
+        : '';
+      const bottomSvg = bottomText
+        ? `<text x="${cx}" y="${bottomY}" text-anchor="middle" font-family="sans-serif" font-size="${bottomSize}" font-weight="bold" fill="${s.bottom_color}">${escapeXml(bottomText)}</text>`
+        : '';
+
       const svg = `<svg width="${TAG_SIZE_PX}" height="${TAG_SIZE_PX}" xmlns="http://www.w3.org/2000/svg">
-${drawArcTextSvg('SI ME VES PERDIDO', cx, cx, arcR, s.arc_start_deg, s.arc_end_deg, arcSize, s.arc_color)}
-<image href="data:image/png;base64,${logoB64}" x="${logoX}" y="${logoY}" width="${logoSize}" height="${logoSize}"/>
-<text x="${cx}" y="${bottomY}" text-anchor="middle" font-family="sans-serif" font-size="${bottomSize}" font-weight="bold" fill="${s.bottom_color}">ESCANEÁ EL QR</text>
+${arcSvg}<image href="data:image/png;base64,${logoB64}" x="${logoX}" y="${logoY}" width="${logoSize}" height="${logoSize}"/>
+${bottomSvg}
 </svg>`;
       return sharp(Buffer.from(svg)).png().toBuffer();
     })();

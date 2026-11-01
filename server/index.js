@@ -586,6 +586,29 @@ app.post('/api/upload/sponsor-logo', requireAdmin, sponsorUpload.single('logo'),
   res.json({ url: `/uploads/sponsors/${req.file.filename}` });
 });
 
+// Chapita logo upload (logos de sponsors para la cara logo de la chapita)
+const chapitaLogoUploadDir = join(__dirname, '..', 'public', 'uploads', 'chapita-logos');
+mkdirSync(chapitaLogoUploadDir, { recursive: true });
+const chapitaLogoUpload = multer({
+  storage: multer.diskStorage({
+    destination: chapitaLogoUploadDir,
+    filename: (_req, file, cb) => {
+      const ext = (file.originalname.split('.').pop() || 'png').toLowerCase().replace(/[^a-z0-9]/g, '') || 'png';
+      cb(null, `logo-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`);
+    },
+  }),
+  limits: { fileSize: 512 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (['image/png', 'image/jpeg', 'image/jpg', 'image/webp'].includes(file.mimetype)) cb(null, true);
+    else cb(new Error('Solo se permiten imágenes PNG, JPG o WebP'), false);
+  },
+});
+
+app.post('/api/upload/chapita-logo', requireAdmin, chapitaLogoUpload.single('logo'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No se recibió ningún archivo' });
+  res.json({ url: `/uploads/chapita-logos/${req.file.filename}` });
+});
+
 // Video generator admin routes
  app.use('/api/admin/videos', videoGeneratorRoutes);
 
