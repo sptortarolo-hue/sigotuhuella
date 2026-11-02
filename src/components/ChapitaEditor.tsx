@@ -58,6 +58,10 @@ export default function ChapitaEditor({ className }: Props) {
   const [saved, setSaved] = useState(false);
   const [logoUrl, setLogoUrl] = useState('');
   const [qrSvgInner, setQrSvgInner] = useState('');
+  // La API devuelve width/height="200" pero viewBox="0 0 21 21": el contenido
+  // está en unidades de MÓDULO, no en píxeles. Escalar por 200 dejaba el QR
+  // diminuto. El server ya parsea el viewBox (generateQrPng) — acá igual.
+  const [qrModuleSize, setQrModuleSize] = useState(200);
   const [logoOptions, setLogoOptions] = useState<LogoOption[]>([]);
   const [logoOptionsLoading, setLogoOptionsLoading] = useState(true);
   const [logoUploading, setLogoUploading] = useState(false);
@@ -106,8 +110,13 @@ export default function ChapitaEditor({ className }: Props) {
       try {
         const svg = await fetch('https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=AA-0001&format=svg&color=000000&bgcolor=ffffff').then(r => r.text());
         if (!cancelled) {
-          const inner = svg.replace(/<svg[^>]*>/, '').replace(/<\/svg>/, '');
+          let inner = svg.replace(/<svg[^>]*>/, '').replace(/<\/svg>/, '');
+          // El rect blanco de fondo lo pinta el preview con el color elegido
+          inner = inner.replace(/<rect\b[^>]*\bx="0"[^>]*\by="0"[^>]*>(?:<\/rect>)?/i, '');
           setQrSvgInner(inner);
+          const vb = svg.match(/viewBox="([^"]*)"/);
+          const measured = vb ? parseFloat(vb[1].trim().split(/\s+/)[2]) : 200;
+          setQrModuleSize(measured > 0 ? measured : 200);
         }
       } catch {}
     })();
@@ -185,6 +194,7 @@ export default function ChapitaEditor({ className }: Props) {
 
   const qrSizePx = useMemo(() => Math.round(s.qr_size_mm * 300 / 25.4), [s.qr_size_mm]);
   const qrX = useMemo(() => Math.round((TAG_PX - qrSizePx) / 2), [qrSizePx]);
+  const qrScale = qrSizePx / qrModuleSize;
   const codeY = useMemo(() => Math.round(TAG_PX * 0.95), []);
   const arcR = useMemo(() => Math.round(TAG_PX * s.arc_radius), [s.arc_radius]);
   const logoSz = useMemo(() => Math.round(TAG_PX * s.logo_scale), [s.logo_scale]);
@@ -343,7 +353,7 @@ export default function ChapitaEditor({ className }: Props) {
                 <svg viewBox={`0 0 ${TAG_PX} ${TAG_PX}`} width="218" height="218" xmlns="http://www.w3.org/2000/svg">
                   <rect width={TAG_PX} height={TAG_PX} fill={s.qr_bg} />
                   {qrSvgInner && (
-                    <g transform={`translate(${qrX}, ${qrX}) scale(${qrSizePx / 200}, ${qrSizePx / 200})`}>
+                    <g transform={`translate(${qrX}, ${qrX}) scale(${qrScale}, ${qrScale})`}>
                       <g dangerouslySetInnerHTML={{ __html: qrSvgInner }} />
                     </g>
                   )}
