@@ -173,8 +173,11 @@ router.post('/batch', requireAdmin, async (req, res) => {
 router.get('/unassigned', requireAdmin, async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT qi.id, qi.code, qi.share_token, qi.batch_id, qi.created_at
-       FROM qr_identifiers qi WHERE qi.my_pet_id IS NULL AND COALESCE(qi.retired, FALSE) = FALSE ORDER BY qi.code ASC`
+      `SELECT qi.id, qi.code, qi.share_token, qi.batch_id, qi.created_at, qi.agrupacion_id,
+              a.name AS agrupacion_name
+       FROM qr_identifiers qi
+       LEFT JOIN agrupaciones a ON a.id = qi.agrupacion_id
+       WHERE qi.my_pet_id IS NULL AND COALESCE(qi.retired, FALSE) = FALSE ORDER BY qi.code ASC`
     );
     res.json({ identifiers: result.rows });
   } catch (err) {
@@ -210,6 +213,10 @@ router.post('/assign', requireAdmin, async (req, res) => {
     const petResult = await pool.query('SELECT * FROM my_pets WHERE id = $1', [my_pet_id]);
     if (petResult.rows.length === 0) return res.status(404).json({ error: 'Mascota no encontrada' });
     if (petResult.rows[0].qr_id) return res.status(400).json({ error: 'Mascota ya tiene QR asignado' });
+    // Chapita de agrupación solo puede ir a una mascota de esa misma agrupación
+    if (qrResult.rows[0].agrupacion_id && qrResult.rows[0].agrupacion_id !== petResult.rows[0].agrupacion_id) {
+      return res.status(400).json({ error: 'Esa chapita pertenece al pool de una agrupación; solo puede asignarse a una mascota de esa agrupación' });
+    }
 
     await pool.query(
       'UPDATE qr_identifiers SET my_pet_id = $1, assigned_at = NOW() WHERE id = $2',
@@ -224,6 +231,203 @@ router.post('/assign', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('qr assign error:', err);
     res.status(500).json({ error: 'Error al asignar QR' });
+  }
+});
+
+// ───── Chapitas por agrupación ─────
+// El admin asigna un lote (rango desde-hasta de códigos sin asignar) a una
+// agrupación. Definitivo: sin devolución al pool general.
+router.post('/allocate-agrupacion', requireAdmin, async (req, res) => {
+  const { agrupacion_id, from_code, to_code, notes } = req.body;
+  if (!agrupacion_id || !from_code || !to_code) {
+    return res.status(400).json({ error: 'agrupacion_id, from_code y to_code son requeridos' });
+  }
+
+  const from = String(from_code).trim().toUpperCase();
+  const to = String(to_code).trim().toUpperCase();
+  if (!/^[A-Z]{3}-\d{4}$/.test(from) || !/^[A-Z]{3}-\d{4}$/.test(to)) {
+    return res.status(400).json({ error: 'Formato de código inválido (esperado AAA-0001)' });
+  }
+  if (from > to) return res.status(400).json({ error: 'El código "desde" debe ser menor o igual al "hasta"' });
+
+  try {
+    const agrupacionCheck = await pool.query(
+      'SELECT id, name FROM agrupaciones WHERE id = $1 AND is_active = TRUE',
+      [agrupacion_id]
+    );
+    if (agrupacionCheck.rows.length === 0) return res.status(404).json({ error: 'Agrupación no encontrada' });
+
+    const inRange = await pool.query(
+      'SELECT id, code FROM qr_identifiers WHERE code >= $1 AND code <= $2 ORDER BY code ASC',
+      [from, to]
+    );
+    if (inRange.rows.length === 0) {
+      return res.status(404).json({ error: 'No hay chapitas en ese rango de códigos' });
+    }
+
+    // Solo libres: sin mascota, sin baja y sin agrupación previa (definitivas)
+    const availableResult = await pool.query(
+      `SELECT id, code FROM qr_identifiers
+       WHERE code >= $1 AND code <= $2
+         AND my_pet_id IS NULL
+         AND COALESCE(retired, FALSE) = FALSE
+         AND agrupacion_id IS NULL
+       ORDER BY code ASC`,
+      [from, to]
+    );
+    const availableRows = availableResult.rows;
+    if (availableRows.length === 0) {
+      return res.status(400).json({ error: 'Ninguna chapita del rango está disponible (asignadas, dadas de baja o de otra agrupación)' });
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const ids = availableRows.map(r => r.id);
+      await client.query(
+        'UPDATE qr_identifiers SET agrupacion_id = $1 WHERE id = ANY($2::uuid[])',
+        [agrupacion_id, ids]
+      );
+      const logResult = await client.query(
+        `INSERT INTO qr_agrupacion_allocations (agrupacion_id, from_code, to_code, quantity, notes, created_by)
+         VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+        [agrupacion_id, availableRows[0].code, availableRows[availableRows.length - 1].code, availableRows.length, notes || null, req.user.id]
+      );
+      await client.query('COMMIT');
+
+      res.status(201).json({
+        allocation: logResult.rows[0],
+        assigned: availableRows.length,
+        skipped: inRange.rows.length - availableRows.length,
+        from_code: availableRows[0].code,
+        to_code: availableRows[availableRows.length - 1].code,
+        agrupacion_name: agrupacionCheck.rows[0].name,
+      });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    console.error('qr allocate-agrupacion error:', err);
+    res.status(500).json({ error: 'Error al asignar lote a la agrupación' });
+  }
+});
+
+// Inventario de chapitas de una agrupación (coordinador de esa agrupación o admin)
+router.get('/agrupacion-inventory/:agrupacionId', requireAuth, async (req, res) => {
+  try {
+    const { agrupacionId } = req.params;
+    const isAdmin = req.user.role === 'admin';
+    if (!isAdmin) {
+      const own = await pool.query(
+        'SELECT 1 FROM agrupaciones WHERE id = $1 AND coordinator_user_id = $2 AND is_active = TRUE',
+        [agrupacionId, req.user.id]
+      );
+      if (own.rows.length === 0) return res.status(403).json({ error: 'No coordinás esta agrupación' });
+    }
+
+    const disponiblesResult = await pool.query(
+      `SELECT id, code, batch_id, created_at FROM qr_identifiers
+       WHERE agrupacion_id = $1 AND my_pet_id IS NULL AND COALESCE(retired, FALSE) = FALSE
+       ORDER BY code ASC`,
+      [agrupacionId]
+    );
+    const asignadasResult = await pool.query(
+      `SELECT qi.id, qi.code, qi.assigned_at,
+              mp.id AS my_pet_id, mp.name AS pet_name, mp.species, mp.birth_date,
+              (mp.avatar_image IS NOT NULL) AS has_avatar,
+              (mp.transferred_at IS NOT NULL) AS transferred,
+              p.id AS adoption_pet_id, p.status AS adoption_status
+       FROM qr_identifiers qi
+       LEFT JOIN my_pets mp ON mp.id = qi.my_pet_id
+       LEFT JOIN pets p ON p.id = mp.adoption_pet_id
+       WHERE qi.agrupacion_id = $1 AND qi.my_pet_id IS NOT NULL AND COALESCE(qi.retired, FALSE) = FALSE
+       ORDER BY qi.code ASC`,
+      [agrupacionId]
+    );
+    const allocationsResult = await pool.query(
+      `SELECT al.*, u.display_name AS created_by_name
+       FROM qr_agrupacion_allocations al
+       LEFT JOIN users u ON u.id = al.created_by
+       WHERE al.agrupacion_id = $1
+       ORDER BY al.created_at DESC`,
+      [agrupacionId]
+    );
+
+    res.json({
+      disponibles: disponiblesResult.rows,
+      asignadas: asignadasResult.rows,
+      allocations: allocationsResult.rows,
+      summary: {
+        disponibles: disponiblesResult.rows.length,
+        asignadas: asignadasResult.rows.length,
+        total: disponiblesResult.rows.length + asignadasResult.rows.length,
+      },
+    });
+  } catch (err) {
+    console.error('qr agrupacion-inventory error:', err);
+    res.status(500).json({ error: 'Error al obtener inventario' });
+  }
+});
+
+// Coordinador (o admin): asigna una chapita del pool de su agrupación a una
+// mascota registrada bajo esa misma agrupación.
+router.post('/assign-agrupacion', requireAuth, async (req, res) => {
+  try {
+    const { qr_id, my_pet_id } = req.body;
+    if (!qr_id || !my_pet_id) return res.status(400).json({ error: 'qr_id y my_pet_id son requeridos' });
+
+    const qrResult = await pool.query('SELECT * FROM qr_identifiers WHERE id = $1', [qr_id]);
+    if (qrResult.rows.length === 0) return res.status(404).json({ error: 'QR no encontrado' });
+    const qr = qrResult.rows[0];
+    if (qr.retired) return res.status(400).json({ error: 'QR dado de baja, no reutilizable' });
+    if (qr.my_pet_id) return res.status(400).json({ error: 'QR ya asignado' });
+    if (!qr.agrupacion_id) return res.status(400).json({ error: 'Esa chapita no pertenece al pool de ninguna agrupación' });
+
+    const petResult = await pool.query('SELECT * FROM my_pets WHERE id = $1', [my_pet_id]);
+    if (petResult.rows.length === 0) return res.status(404).json({ error: 'Mascota no encontrada' });
+    const pet = petResult.rows[0];
+    if (pet.qr_id) return res.status(400).json({ error: 'La mascota ya tiene un QR asignado' });
+    if (pet.agrupacion_id !== qr.agrupacion_id) {
+      return res.status(400).json({ error: 'La mascota no pertenece a la agrupación dueña de la chapita' });
+    }
+
+    const isAdmin = req.user.role === 'admin';
+    if (!isAdmin) {
+      const own = await pool.query(
+        'SELECT 1 FROM agrupaciones WHERE id = $1 AND coordinator_user_id = $2 AND is_active = TRUE',
+        [qr.agrupacion_id, req.user.id]
+      );
+      if (own.rows.length === 0) {
+        return res.status(403).json({ error: 'Solo el coordinador de la agrupación puede asignar sus chapitas' });
+      }
+    }
+
+    await pool.query(
+      'UPDATE qr_identifiers SET my_pet_id = $1, assigned_at = NOW() WHERE id = $2',
+      [my_pet_id, qr_id]
+    );
+    await pool.query(
+      'UPDATE my_pets SET qr_id = $1, qr_requested = false WHERE id = $2',
+      [qr_id, my_pet_id]
+    );
+
+    // Trazabilidad para admins (la chapita no pasa por la forrajería: la gestiona la agrupación)
+    const agrupacionResult = await pool.query(
+      'SELECT name FROM agrupaciones WHERE id = $1',
+      [qr.agrupacion_id]
+    );
+    sendAdminNotificationEmail(
+      '🐾 Chapita de agrupación asignada',
+      `<p style="font-size:16px;">El coordinador <strong>${req.user.display_name || req.user.email}</strong> asignó la chapita <strong>${qr.code}</strong> a <strong>${pet.name}</strong> (agrupación <strong>${agrupacionResult.rows[0]?.name || ''}</strong>).</p>`
+    ).catch(err => console.error('send admin email error:', err));
+
+    res.json({ success: true, code: qr.code, share_token: qr.share_token });
+  } catch (err) {
+    console.error('qr assign-agrupacion error:', err);
+    res.status(500).json({ error: 'Error al asignar chapita de la agrupación' });
   }
 });
 
@@ -272,6 +476,11 @@ router.post('/reassign', requireAdmin, async (req, res) => {
     if (petResult.rows[0].qr_id) {
       await client.query('ROLLBACK');
       return res.status(400).json({ error: 'La mascota destino ya tiene un QR asignado' });
+    }
+    // Chapita de agrupación solo puede moverse dentro de esa misma agrupación
+    if (qrResult.rows[0].agrupacion_id && qrResult.rows[0].agrupacion_id !== petResult.rows[0].agrupacion_id) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Esa chapita pertenece al pool de una agrupación; solo puede asignarse a una mascota de esa agrupación' });
     }
 
     // 1. Desasignar del dueño actual
@@ -367,6 +576,11 @@ router.post('/replace', requireAdmin, async (req, res) => {
       await client.query('ROLLBACK');
       return res.status(400).json({ error: 'QR nuevo ya asignado' });
     }
+    // Una chapita de agrupación solo puede reponer a una mascota de esa misma agrupación
+    if (newResult.rows[0].agrupacion_id && newResult.rows[0].agrupacion_id !== pet.agrupacion_id) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Esa chapita pertenece al pool de una agrupación; solo puede asignarse a una mascota de esa agrupación' });
+    }
 
     const reason = pet.qr_replacement_reason || 'reposicion';
 
@@ -420,6 +634,8 @@ router.post('/claim', requireAuth, async (req, res) => {
     if (qrResult.rows.length === 0) return res.status(404).json({ error: 'Código no encontrado' });
     if (qrResult.rows[0].retired) return res.status(400).json({ error: 'Chapita dada de baja, no reutilizable' });
     if (qrResult.rows[0].my_pet_id) return res.status(400).json({ error: 'Este QR ya está asignado a otra mascota' });
+    // Chapitas de agrupación: las asigna solo su coordinador, no son reclamables
+    if (qrResult.rows[0].agrupacion_id) return res.status(400).json({ error: 'Esta chapita está gestionada por una agrupación; no puede reclamarse desde acá' });
 
     const petResult = await pool.query(
       'SELECT * FROM my_pets WHERE id = $1 AND user_id = $2',
@@ -456,6 +672,8 @@ router.post('/assign-by-token', requireAuth, async (req, res) => {
     if (qrResult.rows.length === 0) return res.status(404).json({ error: 'QR no encontrado' });
     if (qrResult.rows[0].retired) return res.status(400).json({ error: 'Chapita dada de baja, no reutilizable' });
     if (qrResult.rows[0].my_pet_id) return res.status(400).json({ error: 'Este QR ya está asignado a otra mascota' });
+    // Chapitas de agrupación: las asigna solo su coordinador, no son reclamables
+    if (qrResult.rows[0].agrupacion_id) return res.status(400).json({ error: 'Esta chapita está gestionada por una agrupación; no puede reclamarse desde acá' });
 
     const petResult = await pool.query(
       'SELECT * FROM my_pets WHERE id = $1 AND user_id = $2',
@@ -484,7 +702,7 @@ router.get('/public/:shareToken', async (req, res) => {
   try {
     // Verify the QR exists before anything else
     const existsResult = await pool.query(
-      'SELECT id, my_pet_id, code, retired FROM qr_identifiers WHERE share_token = $1',
+      'SELECT id, my_pet_id, code, retired, agrupacion_id FROM qr_identifiers WHERE share_token = $1',
       [req.params.shareToken]
     );
 
@@ -594,6 +812,22 @@ router.get('/public/:shareToken', async (req, res) => {
 
     // QR existe pero no tiene mascota asignada y no hay adopción pendiente
     if (existsResult.rows[0].my_pet_id === null) {
+      // Chapita del pool de una agrupación: reservada, no reclamable por el público
+      if (existsResult.rows[0].agrupacion_id) {
+        const agrupacionResult = await pool.query(
+          'SELECT name FROM agrupaciones WHERE id = $1',
+          [existsResult.rows[0].agrupacion_id]
+        );
+        return res.json({
+          found: false,
+          exists: true,
+          reserved: true,
+          agrupacion: {
+            id: existsResult.rows[0].agrupacion_id,
+            name: agrupacionResult.rows[0]?.name || 'una agrupación',
+          },
+        });
+      }
       return res.json({ found: false, exists: true, share_token: req.params.shareToken });
     }
 
@@ -908,7 +1142,8 @@ router.post('/assigned/:id/notify', requireAdmin, async (req, res) => {
 
 router.delete('/cleanup', requireAdmin, async (req, res) => {
   try {
-    const result = await pool.query('DELETE FROM qr_identifiers WHERE my_pet_id IS NULL AND COALESCE(retired, FALSE) = FALSE');
+    // Las chapitas asignadas a una agrupación son definitivas: no se limpian
+    const result = await pool.query('DELETE FROM qr_identifiers WHERE my_pet_id IS NULL AND COALESCE(retired, FALSE) = FALSE AND agrupacion_id IS NULL');
     res.json({ success: true, deleted: result.rowCount });
   } catch (err) {
     console.error('qr cleanup error:', err);

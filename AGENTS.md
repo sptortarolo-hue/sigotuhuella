@@ -416,6 +416,33 @@ El tab "Tablero" muestra para coordinadores `CoordinatorZoneDashboard` (no el da
 | `src/pages/Admin.tsx` | Filtrado de tabs por rol |
 | `src/pages/admin/AgrupacionesTab.tsx` | Vista restringida (sin crear/eliminar) |
 
+## Chapitas QR por agrupación
+
+El admin asigna lotes de chapitas (rango de códigos desde–hasta) a una agrupación; el coordinador las asigna a mascotas registradas desde el panel de la agrupación, y esas mascotas pueden publicarse en adopción con el flujo normal (la chapita viaja al adoptante).
+
+### Reglas
+
+- `qr_identifiers.agrupacion_id` (NULL = pool general del admin) — la asignación es **definitiva**: no hay devolución al pool y el `DELETE /qr/cleanup` las excluye.
+- Solo el **coordinador** de la agrupación registra mascotas (`my_pets.agrupacion_id`) y asigna chapitas de su pool. El admin puede hacer todo sobre cualquier agrupación.
+- Una chapita de agrupación solo puede asignarse a mascotas de esa misma agrupación (guard en `/assign`, `/reassign`, `/replace`).
+- Una chapita sin asignar de una agrupación **no es reclamable por el público**: al escanearla, `GET /qr/public/:token` devuelve `reserved: true` + nombre de la agrupación (y `/qr/claim`, `/qr/assign-by-token`, `/api/request-chapita` la rechazan).
+- `canEditMyPet` también permite al coordinador actual de la agrupación (y al admin) gestionar las mascotas con `agrupacion_id` — cubre el cambio de coordinador.
+
+### Endpoints
+
+| Endpoint | Auth | Descripción |
+|----------|------|-------------|
+| `POST /qr/allocate-agrupacion` | admin | Asigna rango desde–hasta de códigos libres a una agrupación (audita en `qr_agrupacion_allocations`) |
+| `GET /qr/agrupacion-inventory/:id` | coord/admin | Disponibles, asignadas (código+mascota) e historial de lotes |
+| `POST /qr/assign-agrupacion` | coord/admin | Asigna chapita del pool de la agrupación a una mascota de la agrupación |
+| `GET /my-pets/agrupacion/:id` | coord/admin | Mascotas de la agrupación con estado de QR y adopción |
+
+### UI
+
+- **Admin → tab "Chapitas Agrup."** (`AgrupacionChapitasPanel` modo admin): selector de agrupación, asignar lote con preview del rango, historial, inventario, registrar mascota y listado con acciones (asignar chapita, dar en adopción, ver).
+- **Coordinador → tab "Chapitas"**: el mismo panel fijo a su agrupación (agregado a `COORDINATOR_TABS`).
+- Tab Chapitas admin: el pool sin asignar muestra en violeta las chapitas reservadas a agrupaciones (y los selects de asignar/reponer las excluyen).
+
 ## PostgreSQL (VPS)
 
 - **Host:** localhost:5432

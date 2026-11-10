@@ -2190,6 +2190,32 @@ export async function initDb() {
       ALTER TABLE pets ADD COLUMN IF NOT EXISTS color_tokens TEXT[] DEFAULT '{}';
     `, 'pets_color_tokens');
 
+    // ───── Chapitas QR controladas por agrupación ─────
+    // El admin asigna lotes (rango desde-hasta de códigos) a una agrupación;
+    // el coordinador los asigna a mascotas registradas bajo su órbita.
+    // agrupacion_id NULL = pool general del admin. Definitivo: sin devolución.
+    await migrate(client, `
+      ALTER TABLE qr_identifiers ADD COLUMN IF NOT EXISTS agrupacion_id UUID REFERENCES agrupaciones(id) ON DELETE SET NULL;
+      ALTER TABLE my_pets ADD COLUMN IF NOT EXISTS agrupacion_id UUID REFERENCES agrupaciones(id) ON DELETE SET NULL;
+      CREATE INDEX IF NOT EXISTS idx_qr_identifiers_agrupacion ON qr_identifiers(agrupacion_id);
+      CREATE INDEX IF NOT EXISTS idx_my_pets_agrupacion ON my_pets(agrupacion_id);
+    `, 'chapitas_qr_agrupacion');
+
+    // Historial de asignaciones de lotes de chapitas a agrupaciones (auditoría)
+    await migrate(client, `
+      CREATE TABLE IF NOT EXISTS qr_agrupacion_allocations (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        agrupacion_id UUID NOT NULL REFERENCES agrupaciones(id) ON DELETE CASCADE,
+        from_code VARCHAR(8) NOT NULL,
+        to_code VARCHAR(8) NOT NULL,
+        quantity INTEGER NOT NULL,
+        notes TEXT,
+        created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_qr_allocations_agrupacion ON qr_agrupacion_allocations(agrupacion_id, created_at);
+    `, 'qr_agrupacion_allocations');
+
     console.log('Database migrations complete');
   } finally {
     client.release();

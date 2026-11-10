@@ -39,6 +39,15 @@ router.post('/', async (req, res) => {
         await client.query('ROLLBACK');
         return res.status(400).json({ error: 'Este código QR ya está asociado a otra mascota o no es válido.' });
       }
+      // Chapitas de agrupación: las asigna solo su coordinador, no son reclamables acá
+      const reservedCheck = await client.query(
+        'SELECT agrupacion_id FROM qr_identifiers WHERE share_token = $1',
+        [share_token]
+      );
+      if (reservedCheck.rows[0]?.agrupacion_id) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Esta chapita está gestionada por una agrupación; contactate con ellos para asociarla.' });
+      }
     }
 
     let userId;

@@ -491,6 +491,7 @@ export const api = {
     healthTips: (petId: string) => request(`/my-pets/${petId}/health-tips`),
     reportLost: (id: string, data: any) => request(`/my-pets/${id}/report-lost`, { method: 'POST', body: JSON.stringify(data) }),
     publishAdoption: (id: string, data: any) => request(`/my-pets/${id}/publish-adoption`, { method: 'POST', body: JSON.stringify(data) }),
+    agrupacionPets: (agrupacionId: string) => request(`/my-pets/agrupacion/${agrupacionId}`),
   },
   qr: {
     batch: (count: number) => request('/qr/batch', { method: 'POST', body: JSON.stringify({ count }) }),
@@ -517,6 +518,10 @@ export const api = {
     },
     assign: (qrId: string, myPetId: string) => request('/qr/assign', { method: 'POST', body: JSON.stringify({ qr_id: qrId, my_pet_id: myPetId }) }),
     reassign: (qrId: string, newMyPetId: string) => request('/qr/reassign', { method: 'POST', body: JSON.stringify({ qr_id: qrId, new_my_pet_id: newMyPetId }) }),
+    allocateAgrupacion: (agrupacionId: string, fromCode: string, toCode: string, notes?: string) =>
+      request('/qr/allocate-agrupacion', { method: 'POST', body: JSON.stringify({ agrupacion_id: agrupacionId, from_code: fromCode, to_code: toCode, notes }) }),
+    agrupacionInventory: (agrupacionId: string) => request(`/qr/agrupacion-inventory/${agrupacionId}`),
+    assignAgrupacion: (qrId: string, myPetId: string) => request('/qr/assign-agrupacion', { method: 'POST', body: JSON.stringify({ qr_id: qrId, my_pet_id: myPetId }) }),
     petsAvailable: () => request('/qr/pets-available'),
     claim: (code: string, myPetId: string) => request('/qr/claim', { method: 'POST', body: JSON.stringify({ code, my_pet_id: myPetId }) }),
     assignByToken: (shareToken: string, myPetId: string) => request('/qr/assign-by-token', { method: 'POST', body: JSON.stringify({ share_token: shareToken, my_pet_id: myPetId }) }),

@@ -36,9 +36,13 @@ const EVENT_TYPE_ICONS = {
   grooming: '✂️', other: '📋',
 };
 
-async function canEditMyPet(userId, petId) {
+async function canEditMyPet(user, petId) {
+  // Acepta el objeto req.user (para saber rol admin) o un userId suelto
+  const userId = typeof user === 'object' && user !== null ? user.id : user;
+  const isAdmin = typeof user === 'object' && user !== null && user.role === 'admin';
+
   const result = await pool.query(
-    `SELECT mp.user_id, ms.user_id IS NOT NULL as is_shared
+    `SELECT mp.user_id, mp.agrupacion_id, ms.user_id IS NOT NULL as is_shared
      FROM my_pets mp
      LEFT JOIN my_pet_shares ms ON ms.pet_id = mp.id AND ms.user_id = $1
      WHERE mp.id = $2 AND mp.transferred_at IS NULL`,
@@ -46,7 +50,20 @@ async function canEditMyPet(userId, petId) {
   );
   if (result.rows.length === 0) return { allowed: false, isOwner: false };
   const row = result.rows[0];
-  return { allowed: row.user_id === userId || row.is_shared, isOwner: row.user_id === userId };
+  const isOwner = row.user_id === userId;
+  let allowed = isOwner || row.is_shared;
+  // El coordinador actual de la agrupación dueña gestiona la mascota
+  // (cubre el caso de cambio de coordinador: la mascota sigue en la órbita)
+  if (!allowed && row.agrupacion_id) {
+    const coord = await pool.query(
+      'SELECT 1 FROM agrupaciones WHERE id = $1 AND coordinator_user_id = $2 AND is_active = TRUE',
+      [row.agrupacion_id, userId]
+    );
+    allowed = coord.rows.length > 0;
+  }
+  // El admin ve y maneja todo sobre las agrupaciones
+  if (!allowed && isAdmin && row.agrupacion_id) allowed = true;
+  return { allowed, isOwner };
 }
 
 async function compressAvatar(imageData, mimeType, size = 400) {
@@ -119,9 +136,51 @@ router.get('/featured', async (req, res) => {
   }
 });
 
+// ── Mascotas registradas bajo la órbita de una agrupación ───────────────────
+// Coordinador de esa agrupación (o admin): listado con estado de QR y adopción.
+router.get('/agrupacion/:agrupacionId', requireAuth, async (req, res) => {
+  try {
+    const { agrupacionId } = req.params;
+    const isAdmin = req.user.role === 'admin';
+    if (!isAdmin) {
+      const own = await pool.query(
+        'SELECT 1 FROM agrupaciones WHERE id = $1 AND coordinator_user_id = $2 AND is_active = TRUE',
+        [agrupacionId, req.user.id]
+      );
+      if (own.rows.length === 0) return res.status(403).json({ error: 'No coordinás esta agrupación' });
+    }
+
+    const result = await pool.query(
+      `SELECT mp.id, mp.name, mp.species, mp.breed, mp.color, mp.gender, mp.birth_date,
+              mp.bio, mp.created_at, mp.user_id,
+              (mp.avatar_image IS NOT NULL) AS has_avatar,
+              qi.id AS qr_id, qi.code AS qr_code, qi.share_token AS qr_share_token,
+              u.display_name AS owner_name,
+              p.id AS adoption_pet_id, p.status AS adoption_status,
+              (mp.transferred_at IS NOT NULL) AS transferred,
+              EXISTS (
+                SELECT 1 FROM adoption_assignments aa
+                JOIN pets p2 ON p2.id = aa.pet_id
+                WHERE p2.my_pet_id = mp.id AND aa.status = 'pending_adopter'
+              ) AS adoption_pending
+       FROM my_pets mp
+       LEFT JOIN qr_identifiers qi ON qi.id = mp.qr_id
+       LEFT JOIN users u ON u.id = mp.user_id
+       LEFT JOIN pets p ON p.id = mp.adoption_pet_id
+       WHERE mp.agrupacion_id = $1 AND mp.transferred_at IS NULL
+       ORDER BY mp.created_at DESC`,
+      [agrupacionId]
+    );
+    res.json({ pets: result.rows });
+  } catch (err) {
+    console.error('my-pets agrupacion list error:', err);
+    res.status(500).json({ error: 'Error al obtener mascotas de la agrupación' });
+  }
+});
+
 router.get('/:id', requireAuth, async (req, res) => {
   try {
-    const access = await canEditMyPet(req.user.id, req.params.id);
+    const access = await canEditMyPet(req.user, req.params.id);
     if (!access.allowed) return res.status(404).json({ error: 'Mascota no encontrada' });
 
     const result = await pool.query(
@@ -190,6 +249,23 @@ router.post('/', requireAuth, async (req, res) => {
 
     if (!name || !species) return res.status(400).json({ error: 'Nombre y especie son requeridos' });
 
+    // Alta de mascota bajo la órbita de una agrupación (solo su coordinador o admin)
+    let agrupacionId = null;
+    if (req.body.agrupacion_id) {
+      const agrupacionCheck = await pool.query(
+        'SELECT id, coordinator_user_id FROM agrupaciones WHERE id = $1 AND is_active = TRUE',
+        [req.body.agrupacion_id]
+      );
+      if (agrupacionCheck.rows.length === 0) {
+        return res.status(404).json({ error: 'Agrupación no encontrada' });
+      }
+      const ag = agrupacionCheck.rows[0];
+      if (ag.coordinator_user_id !== req.user.id && req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Solo el coordinador de la agrupación puede registrar mascotas en ella' });
+      }
+      agrupacionId = ag.id;
+    }
+
     let avatarData = null;
     let avatarMime = null;
     let avatarOriginal = null;
@@ -203,8 +279,8 @@ router.post('/', requireAuth, async (req, res) => {
     const result = await pool.query(
       `INSERT INTO my_pets (user_id, name, species, breed, color, gender, birth_date, chip_id,
         bio, personality_tags, is_vaccinated, is_sterilized, is_dewormed, weight_kg,
-        avatar_image, avatar_mime_type, crop_x, crop_y, original_avatar_data, pet_type)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+        avatar_image, avatar_mime_type, crop_x, crop_y, original_avatar_data, pet_type, agrupacion_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
        RETURNING *`,
       [
         req.user.id, name, species, breed || null, color || null, gender || 'unknown',
@@ -214,6 +290,7 @@ router.post('/', requireAuth, async (req, res) => {
         weight_kg || null, avatarData, avatarMime,
         crop_x ?? 0.5, crop_y ?? 0.5, avatarOriginal,
         req.body.pet_type || 'own',
+        agrupacionId,
       ]
     );
     res.status(201).json({ myPet: result.rows[0] });
@@ -274,7 +351,7 @@ router.post('/admin/for-user/:userId', requireAuth, requireAdmin, async (req, re
 
 router.put('/:id', requireAuth, async (req, res) => {
   try {
-    const access = await canEditMyPet(req.user.id, req.params.id);
+    const access = await canEditMyPet(req.user, req.params.id);
     if (!access.allowed && req.user.role !== 'admin') return res.status(404).json({ error: 'Mascota no encontrada' });
 
     const existing = await pool.query('SELECT * FROM my_pets WHERE id = $1', [req.params.id]);
@@ -348,7 +425,7 @@ router.put('/:id', requireAuth, async (req, res) => {
 });
 
 router.delete('/:id', requireAuth, async (req, res) => {
-  const access = await canEditMyPet(req.user.id, req.params.id);
+  const access = await canEditMyPet(req.user, req.params.id);
   if (!access.allowed && req.user.role !== 'admin') return res.status(404).json({ error: 'Mascota no encontrada' });
 
   const client = await pool.connect();
@@ -386,7 +463,7 @@ router.delete('/:id', requireAuth, async (req, res) => {
 
 router.post('/:id/photos', requireAuth, async (req, res) => {
   try {
-    const access = await canEditMyPet(req.user.id, req.params.id);
+    const access = await canEditMyPet(req.user, req.params.id);
     if (!access.allowed) return res.status(404).json({ error: 'Mascota no encontrada' });
 
     const { image_data, mime_type, caption, taken_at, crop_x, crop_y } = req.body;
@@ -422,7 +499,7 @@ router.get('/:id/photos', requireAuth, async (req, res) => {
 
 router.delete('/:id/photos/:photoId', requireAuth, async (req, res) => {
   try {
-    const access = await canEditMyPet(req.user.id, req.params.id);
+    const access = await canEditMyPet(req.user, req.params.id);
     if (!access.allowed) return res.status(404).json({ error: 'Mascota no encontrada' });
 
     const result = await pool.query(
@@ -439,7 +516,7 @@ router.delete('/:id/photos/:photoId', requireAuth, async (req, res) => {
 
 router.get('/:id/photo/:photoId', requireAuth, async (req, res) => {
   try {
-    const access = await canEditMyPet(req.user.id, req.params.id);
+    const access = await canEditMyPet(req.user, req.params.id);
     if (!access.allowed) return res.status(404).end();
     const result = await pool.query(
       `SELECT mp.image_data, mp.mime_type FROM my_pet_photos mp
@@ -476,7 +553,7 @@ router.get('/:id/avatar', async (req, res) => {
 
 router.post('/:id/events', requireAuth, async (req, res) => {
   try {
-    const access = await canEditMyPet(req.user.id, req.params.id);
+    const access = await canEditMyPet(req.user, req.params.id);
     if (!access.allowed) return res.status(404).json({ error: 'Mascota no encontrada' });
 
     const { event_type, title, description, event_date, next_date, photo_id } = req.body;
@@ -522,7 +599,7 @@ router.get('/:id/events', requireAuth, async (req, res) => {
 
 router.delete('/:id/events/:eventId', requireAuth, async (req, res) => {
   try {
-    const access = await canEditMyPet(req.user.id, req.params.id);
+    const access = await canEditMyPet(req.user, req.params.id);
     if (!access.allowed) return res.status(404).json({ error: 'Mascota no encontrada' });
 
     const result = await pool.query(
@@ -707,7 +784,7 @@ router.post('/:id/featured', requireAdmin, async (req, res) => {
 
 router.post('/:id/records', requireAuth, async (req, res) => {
   try {
-    const access = await canEditMyPet(req.user.id, req.params.id);
+    const access = await canEditMyPet(req.user, req.params.id);
     if (!access.allowed) return res.status(404).json({ error: 'Mascota no encontrada' });
 
     const {
@@ -748,7 +825,7 @@ router.post('/:id/records', requireAuth, async (req, res) => {
 
 router.put('/:id/records/:recordId', requireAuth, async (req, res) => {
   try {
-    const access = await canEditMyPet(req.user.id, req.params.id);
+    const access = await canEditMyPet(req.user, req.params.id);
     if (!access.allowed) return res.status(404).json({ error: 'Mascota no encontrada' });
 
     const {
@@ -883,7 +960,7 @@ router.post('/convert/:petId', requireAuth, async (req, res) => {
 
 router.get('/:id/pasaporte', requireAuth, async (req, res) => {
   try {
-    const access = await canEditMyPet(req.user.id, req.params.id);
+    const access = await canEditMyPet(req.user, req.params.id);
     if (!access.allowed) return res.status(404).json({ error: 'Mascota no encontrada' });
     const petResult = await pool.query(
       `SELECT mp.*, u.display_name as owner_name, u.phone as owner_phone
@@ -1056,7 +1133,7 @@ const TIPS_DB = {
 
 router.get('/:id/health-tips', requireAuth, async (req, res) => {
   try {
-    const access = await canEditMyPet(req.user.id, req.params.id);
+    const access = await canEditMyPet(req.user, req.params.id);
     if (!access.allowed) return res.status(404).json({ error: 'Mascota no encontrada' });
     const pet = await pool.query('SELECT species, age, is_vaccinated FROM my_pets WHERE id = $1', [req.params.id]);
 
@@ -1074,7 +1151,7 @@ import { generateVideo } from '../lib/videoAssembler.js';
 
 router.post('/:id/generate-video', requireAuth, async (req, res) => {
   try {
-    const access = await canEditMyPet(req.user.id, req.params.id);
+    const access = await canEditMyPet(req.user, req.params.id);
     if (!access.allowed) return res.status(404).json({ error: 'Mascota no encontrada' });
     const pet = await pool.query(
       'SELECT id, name FROM my_pets WHERE id = $1',
@@ -1268,7 +1345,7 @@ router.post('/:id/publish-adoption', requireAuth, async (req, res) => {
   const { id } = req.params;
   const { location, phone, kind, photoIds, includeAvatar } = req.body;
 
-  const access = await canEditMyPet(req.user.id, id);
+  const access = await canEditMyPet(req.user, id);
   if (!access.allowed) {
     return res.status(404).json({ error: 'Mascota no encontrada' });
   }
@@ -1349,7 +1426,7 @@ router.post('/:id/publish-adoption', requireAuth, async (req, res) => {
       [
         mp.species, mp.name, mp.breed || null, mp.color || null,
         mp.gender || 'unknown', age, description, location.trim(),
-        phone || req.user.phone || '', req.user.id, id,
+        phone || req.user.phone || '', status, req.user.id, id,
         mp.is_vaccinated || false, mp.is_sterilized || false, mp.is_dewormed || false,
         JSON.stringify(extractNeighborhoods(location.trim())),
       ]
@@ -1429,7 +1506,7 @@ router.put('/:id/share', requireAuth, async (req, res) => {
   if (!userId) return res.status(400).json({ error: 'userId requerido' });
 
   try {
-    const access = await canEditMyPet(req.user.id, id);
+    const access = await canEditMyPet(req.user, id);
     if (!access.isOwner && req.user.role !== 'admin') {
       return res.status(403).json({ error: 'Solo el dueño puede compartir' });
     }
@@ -1450,7 +1527,7 @@ router.delete('/:id/share/:userId', requireAuth, async (req, res) => {
   const { id, userId } = req.params;
 
   try {
-    const access = await canEditMyPet(req.user.id, id);
+    const access = await canEditMyPet(req.user, id);
     if (!access.isOwner && req.user.role !== 'admin') {
       return res.status(403).json({ error: 'Solo el dueño puede dejar de compartir' });
     }
@@ -1468,7 +1545,7 @@ router.get('/:id/shares', requireAuth, async (req, res) => {
   const { id } = req.params;
 
   try {
-    const access = await canEditMyPet(req.user.id, id);
+    const access = await canEditMyPet(req.user, id);
     if (!access.allowed) return res.status(403).json({ error: 'No autorizado' });
 
     const shared = await pool.query(

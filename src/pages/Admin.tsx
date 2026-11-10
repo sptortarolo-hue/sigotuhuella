@@ -37,6 +37,7 @@ import BackupTab from '@/src/components/admin/BackupTab';
 import ModerationTab from '@/src/components/admin/ModerationTab';
 import CasesTab from '@/src/components/admin/CasesTab';
 import AgrupacionesTab from '@/src/pages/admin/AgrupacionesTab';
+import AgrupacionChapitasPanel from '@/src/pages/admin/AgrupacionChapitasPanel';
 import {
   Plus, X, Loader2, Save, AlertCircle, Camera, FileText, Download, Activity,
   CreditCard, Users, LayoutDashboard, Trash2, Flag,
@@ -75,7 +76,7 @@ const PERSONALITY_TAGS = [
 
 export default function Admin() {
   const { user, isAdmin, isCoordinator } = useAuth();
-  const [activeTab, setActiveTab] = useState<'pets' | 'adoption' | 'collab' | 'volunteers' | 'users' | 'highlights' | 'news' | 'whatsapp' | 'relay-whatsapp' | 'fb-relay' | 'public' | 'videos' | 'qr' | 'facebook' | 'instagram' | 'dashboard' | 'analytics' | 'sponsors' | 'scraper' | 'raffles' | 'backup' | 'moderation' | 'blacklist' | 'cases' | 'agrupaciones'>('pets');
+  const [activeTab, setActiveTab] = useState<'pets' | 'adoption' | 'collab' | 'volunteers' | 'users' | 'highlights' | 'news' | 'whatsapp' | 'relay-whatsapp' | 'fb-relay' | 'public' | 'videos' | 'qr' | 'qr-agrupaciones' | 'facebook' | 'instagram' | 'dashboard' | 'analytics' | 'sponsors' | 'scraper' | 'raffles' | 'backup' | 'moderation' | 'blacklist' | 'cases' | 'agrupaciones'>('pets');
   const [mountedTabs, setMountedTabs] = useState<Set<string>>(new Set(['pets']));
   const [loadedTabs, setLoadedTabs] = useState<Set<string>>(new Set(['pets', 'users']));
 
@@ -1181,6 +1182,7 @@ export default function Admin() {
           { id: 'facebook', label: 'Facebook', icon: Globe },
           { id: 'videos', label: 'Videos', icon: Film },
   { id: 'qr', label: 'Chapitas', icon: QrCode },
+  { id: 'qr-agrupaciones', label: isAdmin ? 'Chapitas Agrup.' : 'Chapitas', icon: Users },
   { id: 'sponsors', label: 'Colaboradores', icon: Heart },
   { id: 'raffles', label: 'Rifas', icon: Ticket },
   { id: 'analytics', label: 'Analytics', icon: BarChart3 },
@@ -1189,7 +1191,7 @@ export default function Admin() {
   { id: 'agrupaciones', label: 'Agrupaciones', icon: Users },
         ].filter(tab => {
           if (isAdmin) return true;
-          const COORDINATOR_TABS = ['dashboard', 'pets', 'cases', 'agrupaciones', 'moderation'];
+          const COORDINATOR_TABS = ['dashboard', 'pets', 'cases', 'agrupaciones', 'moderation', 'qr-agrupaciones'];
           return COORDINATOR_TABS.includes(tab.id);
         }).map(tab => (
           <button
@@ -2406,6 +2408,13 @@ export default function Admin() {
           {/* ====== AGRUPACIONES ====== */}
           {mountedTabs.has('agrupaciones') && <div className={activeTab === 'agrupaciones' ? '' : 'hidden'}><AgrupacionesTab /></div>}
 
+          {/* ====== CHAPITAS POR AGRUPACIÓN ====== */}
+          {mountedTabs.has('qr-agrupaciones') && (
+            <div className={activeTab === 'qr-agrupaciones' ? '' : 'hidden'}>
+              <AgrupacionChapitasPanel mode={isAdmin ? 'admin' : 'coordinator'} />
+            </div>
+          )}
+
             {/* ====== VIDEOS ====== */}
             {mountedTabs.has('videos') && <div className={activeTab === 'videos' ? '' : 'hidden'}><VideoGeneratorTab /></div>}
 
@@ -2714,7 +2723,7 @@ export default function Admin() {
                       title={item.registrationPending ? 'El dueño no completó el registro' : 'Asignar código QR'}
                     >
                       <option value="" disabled>{item.registrationPending ? 'Registro pendiente' : 'Asignar QR...'}</option>
-                      {qrUnassigned.map((qr: any) => (
+                      {qrUnassigned.filter((qr: any) => !qr.agrupacion_id).map((qr: any) => (
                         <option key={qr.id} value={qr.id}>{qr.code}</option>
                       ))}
                     </select>
@@ -2798,7 +2807,7 @@ export default function Admin() {
                   title="Asignar chapita nueva del pool y dar de baja la anterior"
                 >
                   <option value="" disabled>Reponer con…</option>
-                  {qrUnassigned.map((qr: any) => (
+                  {qrUnassigned.filter((qr: any) => !qr.agrupacion_id).map((qr: any) => (
                     <option key={qr.id} value={qr.id}>{qr.code}</option>
                   ))}
                 </select>
@@ -2858,7 +2867,12 @@ export default function Admin() {
 
     {qrUnassigned.length > 0 && (
       <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
-        <h3 className="text-lg font-bold text-brand-primary mb-4">QRs sin asignar ({qrUnassigned.length})</h3>
+        <h3 className="text-lg font-bold text-brand-primary mb-2">QRs sin asignar ({qrUnassigned.length})</h3>
+        {qrUnassigned.some((q: any) => q.agrupacion_id) && (
+          <p className="text-xs text-violet-600 mb-4">
+            {qrUnassigned.filter((q: any) => q.agrupacion_id).length} chapitas reservadas para agrupaciones (en violeta) — las gestiona su coordinador desde el tab Chapitas Agrup.
+          </p>
+        )}
         <div className="flex flex-col gap-4 mb-4">
           {[...new Set<string>(qrUnassigned.map((q: any) => q.batch_id))].map((batchId: string) => {
             const batchCodes = qrUnassigned.filter((q: any) => q.batch_id === batchId).map((q: any) => q.code).sort();
@@ -2906,8 +2920,10 @@ export default function Admin() {
         </div>
         <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
           {qrUnassigned.slice(0, 48).map((qr: any) => (
-            <div key={qr.id} className="p-2 bg-brand-bg rounded-xl text-center">
+            <div key={qr.id} title={qr.agrupacion_name ? `Reservada: ${qr.agrupacion_name}` : 'Pool general'}
+              className={cn('p-2 rounded-xl text-center', qr.agrupacion_id ? 'bg-violet-50 border border-violet-300' : 'bg-brand-bg')}>
               <p className="text-xs font-mono font-bold text-brand-primary">{qr.code}</p>
+              {qr.agrupacion_name && <p className="text-[9px] text-violet-600 truncate">{qr.agrupacion_name}</p>}
             </div>
           ))}
           {qrUnassigned.length > 48 && (

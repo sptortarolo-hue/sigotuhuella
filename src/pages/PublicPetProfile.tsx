@@ -6,6 +6,7 @@ import {
   PawPrint, Loader2, Syringe, Scissors, Bug, MapPin, Heart,
   ArrowLeft, ShieldCheck, Share2, Copy, Check,
   Camera, ExternalLink, Phone, MessageCircle, AlertTriangle, Info, HeartHandshake,
+  Users,
 } from 'lucide-react';
 import { AnimatePresence } from 'motion/react';
 import FoundReportModal from '@/src/components/FoundReportModal';
@@ -198,6 +199,27 @@ export default function PublicPetProfile() {
             <p className="text-gray-500 mb-8 max-w-md">
               Esta chapita fue reemplazada por pérdida o deterioro y ya no está en uso.
               Si encontraste esta chapita, podés avisar al equipo por WhatsApp al 221 202 5190.
+            </p>
+            <Link to="/" className="px-6 py-3 bg-brand-primary text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all">
+              Ir al inicio
+            </Link>
+          </div>
+        );
+      }
+      if (data?.reserved) {
+        return (
+          <div className="min-h-screen flex flex-col items-center justify-center bg-brand-bg px-4 text-center">
+            <div className="w-20 h-20 bg-violet-100 rounded-3xl flex items-center justify-center mb-6">
+              <Users className="w-10 h-10 text-violet-600" />
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-brand-primary mb-3">Chapita reservada</h1>
+            <p className="text-gray-500 mb-2 max-w-md">
+              Esta chapita está gestionada por{' '}
+              <strong className="text-brand-primary">{data.agrupacion?.name || 'una agrupación'}</strong>.
+            </p>
+            <p className="text-gray-500 mb-8 max-w-md text-sm">
+              Si la encontraste o querés identificar una mascota con ella, contactate con la agrupación.
+              Si encontraste una mascota con urgencia, avisá al equipo por WhatsApp al 221 202 5190.
             </p>
             <Link to="/" className="px-6 py-3 bg-brand-primary text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all">
               Ir al inicio
