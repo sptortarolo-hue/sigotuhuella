@@ -28,6 +28,7 @@ import WhatsAppTab from '@/src/components/admin/WhatsAppTab';
 import RelayWhatsAppTab from '@/src/components/admin/RelayWhatsAppTab';
 import FacebookRelayTab from '@/src/components/admin/FacebookRelayTab';
 import ChapitaEditor from '@/src/components/ChapitaEditor';
+import ChapitaPrintPlanner from '@/src/components/ChapitaPrintPlanner';
 import { formatDate, formatDateTime, formatDateShort } from '@/src/lib/formatDate';
 import UnifiedDashboard from '@/src/pages/admin/UnifiedDashboard';
 import CoordinatorZoneDashboard from '@/src/pages/admin/CoordinatorZoneDashboard';
@@ -2934,6 +2935,9 @@ export default function Admin() {
         </div>
       </div>
     )}
+
+    {/* ───── Impresión combinada: varios logos en una misma plancha ───── */}
+    <ChapitaPrintPlanner />
 
     {qrAssigned.length > 0 && (
       <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">

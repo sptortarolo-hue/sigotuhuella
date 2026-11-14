@@ -1378,7 +1378,7 @@ router.put('/design-settings', requireAdmin, async (req, res) => {
     }
     _chapitaSettingsCache = null;
     _chapitaSettingsTs = 0;
-    logoPngPromise = null;
+    clearLogoPngCache();
     const settings = await getChapitaSettings();
     res.json(settings);
   } catch (err) {
@@ -1388,8 +1388,8 @@ router.put('/design-settings', requireAdmin, async (req, res) => {
 
 router.get('/preview-logo', requireAdmin, async (_req, res) => {
   try {
-    logoPngPromise = null;
-    const png = await processLogoPng();
+    clearLogoPngCache();
+    const png = await processLogoPng((await getChapitaSettings()).logo_path);
     res.set('Content-Type', 'image/png');
     res.send(png);
   } catch (err) {
@@ -1438,7 +1438,7 @@ router.get('/logo-options', requireAdmin, async (_req, res) => {
 
 router.get('/preview-pdf', requireAdmin, async (_req, res) => {
   try {
-    logoPngPromise = null;
+    clearLogoPngCache();
     const qrPng = await generateQrPng('AAA-0001', '00000000-0000-0000-0000-000000000000');
     const logoPng = await generateLogoPng();
 
@@ -1509,7 +1509,73 @@ function drawArcTextSvg(text, cx, cy, r, startDeg, endDeg, fontSize, color) {
   return out;
 }
 
-let logoPngPromise = null;
+// Cache de la cara logo: una entrada por combinación logo+leyendas, así una
+// misma plancha puede llevar varios logos sin regenerarlos una y otra vez.
+let logoPngCache = new Map();
+const DESIGN_KEYS = ['logo_path', 'arc_text', 'bottom_text'];
+
+// Diseño efectivo: lo override de la chapita/fila manda; NULL/undefined cae al
+// global. Un '' guardado a propósito se respeta (leyenda apagada).
+function mergeDesign(globalSettings, source) {
+  const out = { ...globalSettings };
+  if (!source) return out;
+  for (const key of DESIGN_KEYS) {
+    const value = source[key];
+    if (value !== undefined && value !== null) out[key] = value;
+  }
+  return out;
+}
+
+function designCacheKey(design) {
+  return DESIGN_KEYS.map(k => (design[k] === undefined || design[k] === null ? '\u0000' : String(design[k]))).join('\u0001');
+}
+
+// PNG de la cara logo para un diseño concreto (memoizado por combinación).
+async function generateLogoPngFor(design) {
+  const key = designCacheKey(design);
+  let cached = logoPngCache.get(key);
+  if (!cached) {
+    cached = (async () => {
+      const processedLogo = await processLogoPng(design.logo_path);
+      const logoB64 = processedLogo.toString('base64');
+      const cx = TAG_SIZE_PX / 2;
+      const arcR = Math.round(TAG_SIZE_PX * design.arc_radius);
+      const arcSize = design.arc_font_size;
+      const logoSize = Math.round(TAG_SIZE_PX * design.logo_scale);
+      const logoX = Math.round((TAG_SIZE_PX - logoSize) / 2);
+      const logoY = Math.round(cx - logoSize / 2 + TAG_SIZE_PX * 0.03);
+      const bottomSize = design.bottom_font_size;
+      const bottomY = Math.round(TAG_SIZE_PX * 0.93);
+
+      const arcText = (design.arc_text || '').trim();
+      const bottomText = (design.bottom_text || '').trim();
+      const arcSvg = arcText
+        ? drawArcTextSvg(arcText, cx, cx, arcR, design.arc_start_deg, design.arc_end_deg, arcSize, design.arc_color) + '\n'
+        : '';
+      const bottomSvg = bottomText
+        ? `<text x="${cx}" y="${bottomY}" text-anchor="middle" font-family="sans-serif" font-size="${bottomSize}" font-weight="bold" fill="${design.bottom_color}">${escapeXml(bottomText)}</text>`
+        : '';
+
+      const svg = `<svg width="${TAG_SIZE_PX}" height="${TAG_SIZE_PX}" xmlns="http://www.w3.org/2000/svg">
+${arcSvg}<image href="data:image/png;base64,${logoB64}" x="${logoX}" y="${logoY}" width="${logoSize}" height="${logoSize}"/>
+${bottomSvg}
+</svg>`;
+      return sharp(Buffer.from(svg)).png().toBuffer();
+    })();
+    logoPngCache.set(key, cached);
+  }
+  return cached;
+}
+
+// Logo con el diseño global (comportamiento histórico).
+async function generateLogoPng() {
+  return generateLogoPngFor(await getChapitaSettings());
+}
+
+// Invalida el cache (se llama al cambiar el diseño global o el preview)
+function clearLogoPngCache() {
+  logoPngCache.clear();
+}
 
 // Convierte la ruta guardada en settings a un path real dentro de public/.
 // Devuelve null si es inválida (absoluta, con .., apuntando afuera de public/).
@@ -1522,11 +1588,9 @@ function safePublicPath(relPath) {
   return resolved;
 }
 
-// Lee el logo elegido; si no existe o es inválido, cae al logo clásico.
-async function readChapitaLogo() {
-  let settings = {};
-  try { settings = await getChapitaSettings(); } catch { /* usar defaults */ }
-  const chosen = safePublicPath(settings.logo_path);
+// Lee el logo indicado; si no existe o es inválido, cae al logo clásico.
+async function readChapitaLogo(logoPath) {
+  const chosen = safePublicPath(logoPath);
   const candidates = [chosen, join(PUBLIC_DIR, DEFAULT_CHAPITA_LOGO)].filter(Boolean);
   for (const path of candidates) {
     try { return readFileSync(path); } catch { /* probar el siguiente */ }
@@ -1534,8 +1598,8 @@ async function readChapitaLogo() {
   throw new Error('No se encontró ninguna imagen de logo para la chapita');
 }
 
-async function processLogoPng() {
-  const img = await readChapitaLogo();
+async function processLogoPng(logoPath) {
+  const img = await readChapitaLogo(logoPath);
   const logoSize = Math.round(TAG_SIZE_PX * 0.55);
 
   // flatten sobre blanco: los PNG con transparencia dan 4 canales en raw y
@@ -1598,40 +1662,6 @@ async function processLogoPng() {
   return sharp(whitePng).composite([{ input: origPng, top: 0, left: 0 }]).png().toBuffer();
 }
 
-async function generateLogoPng() {
-  if (!logoPngPromise) {
-    logoPngPromise = (async () => {
-      const s = await getChapitaSettings();
-      const processedLogo = await processLogoPng();
-      const logoB64 = processedLogo.toString('base64');
-      const cx = TAG_SIZE_PX / 2;
-      const arcR = Math.round(TAG_SIZE_PX * s.arc_radius);
-      const arcSize = s.arc_font_size;
-      const logoSize = Math.round(TAG_SIZE_PX * s.logo_scale);
-      const logoX = Math.round((TAG_SIZE_PX - logoSize) / 2);
-      const logoY = Math.round(cx - logoSize / 2 + TAG_SIZE_PX * 0.03);
-      const bottomSize = s.bottom_font_size;
-      const bottomY = Math.round(TAG_SIZE_PX * 0.93);
-
-      const arcText = (s.arc_text || '').trim();
-      const bottomText = (s.bottom_text || '').trim();
-      const arcSvg = arcText
-        ? drawArcTextSvg(arcText, cx, cx, arcR, s.arc_start_deg, s.arc_end_deg, arcSize, s.arc_color) + '\n'
-        : '';
-      const bottomSvg = bottomText
-        ? `<text x="${cx}" y="${bottomY}" text-anchor="middle" font-family="sans-serif" font-size="${bottomSize}" font-weight="bold" fill="${s.bottom_color}">${escapeXml(bottomText)}</text>`
-        : '';
-
-      const svg = `<svg width="${TAG_SIZE_PX}" height="${TAG_SIZE_PX}" xmlns="http://www.w3.org/2000/svg">
-${arcSvg}<image href="data:image/png;base64,${logoB64}" x="${logoX}" y="${logoY}" width="${logoSize}" height="${logoSize}"/>
-${bottomSvg}
-</svg>`;
-      return sharp(Buffer.from(svg)).png().toBuffer();
-    })();
-  }
-  return logoPngPromise;
-}
-
 async function generateQrPng(code, shareToken) {
   const s = await getChapitaSettings();
   const qrColor = s.qr_color;
@@ -1671,11 +1701,13 @@ ${inner}
 router.get('/:id/pdf', requireAdmin, async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT code, share_token FROM qr_identifiers WHERE id = $1 AND COALESCE(retired, FALSE) = FALSE',
+      `SELECT code, share_token, logo_path, arc_text, bottom_text
+       FROM qr_identifiers WHERE id = $1 AND COALESCE(retired, FALSE) = FALSE`,
       [req.params.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'QR no encontrado o dado de baja' });
-    const { code, share_token } = result.rows[0];
+    const row = result.rows[0];
+    const { code, share_token } = row;
 
     const layout = await getLayout(req.query.page_w, req.query.page_h);
     const { MM_TO_PT, PAGE_W_PT, PAGE_H_PT, TAG_SIZE_PT, MARGIN_X_MM, MARGIN_Y_MM } = layout;
@@ -1687,7 +1719,7 @@ router.get('/:id/pdf', requireAdmin, async (req, res) => {
 
     const [qrPng, logoPng] = await Promise.all([
       generateQrPng(code, share_token),
-      generateLogoPng(),
+      generateLogoPngFor(mergeDesign(await getChapitaSettings(), row)),
     ]);
     doc.image(qrPng, MARGIN_X_MM * MM_TO_PT, MARGIN_Y_MM * MM_TO_PT, { width: TAG_SIZE_PT });
     doc.image(logoPng, (MARGIN_X_MM + TAG_SIZE_MM + GAP_MM) * MM_TO_PT, MARGIN_Y_MM * MM_TO_PT, { width: TAG_SIZE_PT });
@@ -1703,7 +1735,7 @@ router.get('/batch/:batchId/pdf', requireAdmin, async (req, res) => {
     const { page_w, page_h, from, to } = req.query;
     const layout = await getLayout(page_w, page_h);
 
-    let query = 'SELECT code, share_token FROM qr_identifiers WHERE batch_id = $1';
+    let query = 'SELECT code, share_token, logo_path, arc_text, bottom_text FROM qr_identifiers WHERE batch_id = $1';
     const params = [req.params.batchId];
     let idx = 2;
     if (from) { query += ` AND code >= $${idx++}`; params.push(from.toUpperCase()); }
@@ -1725,10 +1757,11 @@ router.get('/batch/:batchId/pdf', requireAdmin, async (req, res) => {
       if (pageStart > 0) doc.addPage();
 
       const pageIds = identifiers.slice(pageStart, pageStart + PER_PAGE);
+      const globalDesign = await getChapitaSettings();
 
       const pngs = await Promise.all(pageIds.flatMap(ident => [
         generateQrPng(ident.code, ident.share_token),
-        generateLogoPng(),
+        generateLogoPngFor(mergeDesign(globalDesign, ident)),
       ]));
 
       for (let i = 0; i < pageIds.length; i++) {
@@ -1747,6 +1780,124 @@ router.get('/batch/:batchId/pdf', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('qr pdf error:', err);
     res.status(500).json({ error: `Error al generar PDF: ${err.message}` });
+  }
+});
+
+// Impresión combinada: una misma plancha con varias combinaciones de
+// logo + leyendas. Toma códigos ya existentes sin asignar, graba el diseño en
+// cada chapita (así la reimpresión del rango lo respeta) y arma el PDF.
+const PRINT_PLAN_MAX = 500;
+
+router.post('/print-plan', requireAdmin, async (req, res) => {
+  try {
+    const rawSegments = Array.isArray(req.body?.segments) ? req.body.segments : [];
+    if (rawSegments.length === 0) return res.status(400).json({ error: 'Indicá al menos una fila del plan' });
+    if (rawSegments.length > 10) return res.status(400).json({ error: 'Como máximo 10 filas por plan' });
+
+    // Normaliza y valida cada fila
+    const plan = [];
+    let total = 0;
+    for (const seg of rawSegments) {
+      const count = Number(seg?.count);
+      if (!Number.isInteger(count) || count < 1) {
+        return res.status(400).json({ error: 'Cada fila necesita una cantidad entera mayor a 0' });
+      }
+      const logoPath = typeof seg.logo_path === 'string' ? seg.logo_path : null;
+      if (logoPath) {
+        const resolved = safePublicPath(logoPath);
+        if (!resolved || !existsSync(resolved)) {
+          return res.status(400).json({ error: `El logo indicado no existe: ${logoPath}` });
+        }
+      }
+      total += count;
+      plan.push({
+        count,
+        codes: [],
+        design: {
+          logo_path: logoPath,
+          arc_text: typeof seg.arc_text === 'string' ? seg.arc_text : null,
+          bottom_text: typeof seg.bottom_text === 'string' ? seg.bottom_text : null,
+        },
+      });
+    }
+    if (total > PRINT_PLAN_MAX) {
+      return res.status(400).json({ error: `Máximo ${PRINT_PLAN_MAX} chapitas por plan (pediste ${total})` });
+    }
+
+    // Códigos libres, en orden de código
+    const free = await pool.query(
+      `SELECT code, share_token FROM qr_identifiers
+       WHERE my_pet_id IS NULL AND COALESCE(retired, FALSE) = FALSE
+       ORDER BY code ASC LIMIT $1`,
+      [total]
+    );
+    if (free.rows.length < total) {
+      return res.status(400).json({ error: `Pediste ${total} chapitas y hay ${free.rows.length} sin asignar` });
+    }
+
+    // Reparte los códigos en orden y graba el diseño de cada uno
+    let offset = 0;
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      for (const seg of plan) {
+        seg.codes = free.rows.slice(offset, offset + seg.count);
+        offset += seg.count;
+        for (const code of seg.codes) {
+          await client.query(
+            'UPDATE qr_identifiers SET logo_path = $1, arc_text = $2, bottom_text = $3 WHERE code = $4',
+            [seg.design.logo_path, seg.design.arc_text, seg.design.bottom_text, code.code]
+          );
+        }
+      }
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+
+    // PDF con el diseño correcto en cada par
+    const layout = await getLayout(req.body?.page_w, req.body?.page_h);
+    const { MM_TO_PT, PAGE_W_PT, PAGE_H_PT, TAG_SIZE_PT, PAIRS_PER_ROW, PER_PAGE, MARGIN_X_MM, MARGIN_Y_MM } = layout;
+    const globalDesign = await getChapitaSettings();
+    const items = plan.flatMap(seg =>
+      seg.codes.map(c => ({ ...c, design: mergeDesign(globalDesign, seg.design) }))
+    );
+
+    const doc = new PDFDocument({ size: [PAGE_W_PT, PAGE_H_PT], margin: 0 });
+    res.set('Content-Type', 'application/pdf');
+    res.set('Content-Disposition', `attachment; filename="plan-${Date.now()}.pdf"`);
+    doc.pipe(res);
+
+    for (let pageStart = 0; pageStart < items.length; pageStart += PER_PAGE) {
+      if (pageStart > 0) doc.addPage();
+
+      const pageItems = items.slice(pageStart, pageStart + PER_PAGE);
+
+      const pngs = await Promise.all(pageItems.flatMap(item => [
+        generateQrPng(item.code, item.share_token),
+        generateLogoPngFor(item.design),
+      ]));
+
+      for (let i = 0; i < pageItems.length; i++) {
+        const row = Math.floor(i / PAIRS_PER_ROW);
+        const col = i % PAIRS_PER_ROW;
+        const qrCell = col * 2;
+        const xMm = MARGIN_X_MM + qrCell * (TAG_SIZE_MM + GAP_MM);
+        const yMm = MARGIN_Y_MM + row * (TAG_SIZE_MM + GAP_MM);
+
+        doc.image(pngs[i * 2], xMm * MM_TO_PT, yMm * MM_TO_PT, { width: TAG_SIZE_PT });
+        doc.image(pngs[i * 2 + 1], (xMm + (TAG_SIZE_MM + GAP_MM)) * MM_TO_PT, yMm * MM_TO_PT, { width: TAG_SIZE_PT });
+      }
+    }
+
+    doc.end();
+    console.log(`qr print-plan: ${items.length} chapitas en ${plan.length} filas`);
+  } catch (err) {
+    console.error('qr print-plan error:', err);
+    res.status(500).json({ error: `Error al generar el plan: ${err.message}` });
   }
 });
 

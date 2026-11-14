@@ -1331,6 +1331,18 @@ export async function initDb() {
     await migrate(client, `INSERT INTO settings (key, value) VALUES ('chapita_arc_text', 'SI ME VES PERDIDO') ON CONFLICT (key) DO NOTHING`, 'chapita_arc_text');
     await migrate(client, `INSERT INTO settings (key, value) VALUES ('chapita_bottom_text', 'ESCANEÁ EL QR') ON CONFLICT (key) DO NOTHING`, 'chapita_bottom_text');
 
+    // Diseño propio por chapita (impresión combinada de varios logos).
+    // NULL = usa el diseño global de arriba. '' a propósito = leyenda apagada.
+    await migrate(client, `
+      ALTER TABLE qr_identifiers ADD COLUMN IF NOT EXISTS logo_path TEXT
+    `, 'qr_identifiers logo_path');
+    await migrate(client, `
+      ALTER TABLE qr_identifiers ADD COLUMN IF NOT EXISTS arc_text TEXT
+    `, 'qr_identifiers arc_text');
+    await migrate(client, `
+      ALTER TABLE qr_identifiers ADD COLUMN IF NOT EXISTS bottom_text TEXT
+    `, 'qr_identifiers bottom_text');
+
     await migrate(client, `
       ALTER TABLE whatsapp_groups ADD COLUMN IF NOT EXISTS type VARCHAR(20) DEFAULT 'group'
     `, 'whatsapp_groups type');

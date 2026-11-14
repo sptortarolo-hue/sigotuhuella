@@ -545,6 +545,36 @@ export const api = {
     saveDesignSettings: (data: Record<string, string | number>) => request('/qr/design-settings', { method: 'PUT', body: JSON.stringify(data) }),
     logoOptions: () => request('/qr/logo-options'),
     uploadLogoUrl: () => apiUrl('/api/upload/chapita-logo'),
+    // Impresión combinada: una plancha con varias combinaciones logo + leyendas.
+    // Devuelve el PDF; si el server rechaza (ej. faltan códigos) tira el error.
+    printPlan: (plan: {
+      segments: Array<{ logo_path: string | null; arc_text: string | null; bottom_text: string | null; count: number }>;
+      page_w?: string; page_h?: string;
+    }) => {
+      const token = getToken();
+      return fetch(apiUrl('/api/qr/print-plan'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(plan),
+      }).then(async res => {
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || `Error al generar el plan (${res.status})`);
+        }
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `plan-chapitas.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      });
+    },
     previewLogoUrl: () => {
       const token = getToken();
       return apiUrl(`/api/qr/preview-logo${token ? `?token=${token}` : ''}`);
