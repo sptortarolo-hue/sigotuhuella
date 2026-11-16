@@ -174,7 +174,7 @@ router.get('/unassigned', requireAdmin, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT qi.id, qi.code, qi.share_token, qi.batch_id, qi.created_at, qi.agrupacion_id, qi.printed_at,
-              a.name AS agrupacion_name
+              qi.logo_path, qi.arc_text, qi.bottom_text, a.name AS agrupacion_name
        FROM qr_identifiers qi
        LEFT JOIN agrupaciones a ON a.id = qi.agrupacion_id
        WHERE qi.my_pet_id IS NULL AND COALESCE(qi.retired, FALSE) = FALSE ORDER BY qi.code ASC`
@@ -1382,6 +1382,56 @@ router.put('/design-settings', requireAdmin, async (req, res) => {
     const settings = await getChapitaSettings();
     res.json(settings);
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Diseño propio de UNA chapita. Solo se puede cambiar mientras no esté impresa
+// (después el diseño queda fijo: la chapita física ya lo tiene).
+// Campos en null = volver al diseño global.
+router.put('/:id/design', requireAdmin, async (req, res) => {
+  try {
+    const { logo_path, arc_text, bottom_text } = req.body || {};
+
+    if (logo_path) {
+      const resolved = safePublicPath(logo_path);
+      if (!resolved || !existsSync(resolved)) {
+        return res.status(400).json({ error: `El logo indicado no existe: ${logo_path}` });
+      }
+    }
+
+    const current = await pool.query('SELECT code, printed_at FROM qr_identifiers WHERE id = $1', [req.params.id]);
+    if (current.rows.length === 0) return res.status(404).json({ error: 'Chapita no encontrada' });
+    if (current.rows[0].printed_at) {
+      return res.status(400).json({ error: 'Esta chapita ya está impresa: su diseño quedó fijo' });
+    }
+
+    // Solo se tocan los campos que vinieron en el body:
+    //   ausente  -> no se toca
+    //   null     -> volver al diseño global
+    //   string   -> valor propio ('' = leyenda apagada)
+    const body = req.body || {};
+    const sets = [];
+    const params = [];
+    const add = (key, column) => {
+      if (!(key in body)) return;
+      const value = body[key];
+      params.push(value === null ? null : String(value));
+      sets.push(`${column} = $${params.length}`);
+    };
+    add('logo_path', 'logo_path');
+    add('arc_text', 'arc_text');
+    add('bottom_text', 'bottom_text');
+
+    if (sets.length === 0) return res.status(400).json({ error: 'No indicaste ningún campo para cambiar' });
+
+    params.push(req.params.id);
+    await pool.query(`UPDATE qr_identifiers SET ${sets.join(', ')} WHERE id = $${params.length}`, params);
+
+    clearLogoPngCache();
+    res.json({ ok: true, code: current.rows[0].code });
+  } catch (err) {
+    console.error('qr design update error:', err);
     res.status(500).json({ error: err.message });
   }
 });

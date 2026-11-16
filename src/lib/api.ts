@@ -545,6 +545,10 @@ export const api = {
     saveDesignSettings: (data: Record<string, string | number>) => request('/qr/design-settings', { method: 'PUT', body: JSON.stringify(data) }),
     logoOptions: () => request('/qr/logo-options'),
     uploadLogoUrl: () => apiUrl('/api/upload/chapita-logo'),
+    // Diseño propio de una chapita (solo mientras no esté impresa).
+    // Campos ausentes no se tocan; null = volver al diseño global.
+    updateDesign: (qrId: string, design: { logo_path?: string | null; arc_text?: string | null; bottom_text?: string | null }) =>
+      request(`/qr/${qrId}/design`, { method: 'PUT', body: JSON.stringify(design) }),
     // Impresión combinada: una plancha con varias combinaciones logo + leyendas.
     // Devuelve el PDF; si el server rechaza (ej. faltan códigos) tira el error.
     printPlan: (plan: {

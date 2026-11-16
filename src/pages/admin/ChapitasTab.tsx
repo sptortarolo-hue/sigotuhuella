@@ -5,7 +5,7 @@ import { formatDate, formatDateTime } from '@/src/lib/formatDate';
 import { cn } from '@/src/lib/utils';
 import {
   Sparkles, Save, Loader2, FileText, QrCode, RefreshCw, Trash2, Bell, Send, X,
-  Download, AlertCircle, Check, ExternalLink, Palette, Printer, ClipboardCheck, Megaphone, ShieldAlert,
+  Download, AlertCircle, Check, ExternalLink, Palette, Printer, ClipboardCheck, Megaphone, ShieldAlert, Lock,
 } from 'lucide-react';
 import ChapitaEditor from '@/src/components/ChapitaEditor';
 import ChapitaPrintPlanner from '@/src/components/ChapitaPrintPlanner';
@@ -77,6 +77,12 @@ export default function ChapitasTab({ onOpenMyPet, onReplacementsChange }: Props
   const [cleanupOpen, setCleanupOpen] = useState(false);
   const [cleanupTyped, setCleanupTyped] = useState('');
 
+  // ── Estado: diseño propio de una chapita ──
+  const [logoOptions, setLogoOptions] = useState<any[]>([]);
+  const [designModal, setDesignModal] = useState<any | null>(null);
+  const [designForm, setDesignForm] = useState({ logo_path: '', arc_text: '', bottom_text: '' });
+  const [designSaving, setDesignSaving] = useState(false);
+
   const [section, setSection] = useState<Section>('diseno');
 
   useEffect(() => {
@@ -92,8 +98,34 @@ export default function ChapitasTab({ onOpenMyPet, onReplacementsChange }: Props
         if (map.pdf_page_height !== undefined) setPdfPageHeight(map.pdf_page_height);
       } catch (e) { console.error(e); }
       await Promise.all([fetchQrData(), fetchLastCode()]);
+      try {
+        const logos = await api.qr.logoOptions();
+        setLogoOptions(Array.isArray(logos?.options) ? logos.options : []);
+      } catch { /* el editor de diseño por chapita queda vacío */ }
     })();
   }, []);
+
+  const openDesign = (qr: any) => {
+    setDesignModal(qr);
+    setDesignForm({
+      logo_path: qr.logo_path || '',
+      arc_text: qr.arc_text || '',
+      bottom_text: qr.bottom_text || '',
+    });
+  };
+
+  const saveDesign = async (reset = false) => {
+    if (!designModal) return;
+    setDesignSaving(true);
+    try {
+      await api.qr.updateDesign(designModal.id, reset
+        ? { logo_path: null, arc_text: null, bottom_text: null }
+        : { logo_path: designForm.logo_path, arc_text: designForm.arc_text, bottom_text: designForm.bottom_text });
+      setDesignModal(null);
+      await fetchQrData();
+    } catch (e: any) { alert(e.message || 'Error al guardar el diseño'); }
+    setDesignSaving(false);
+  };
 
   useEffect(() => { onReplacementsChange?.(qrReplacements.length); }, [qrReplacements.length]);
 
@@ -478,13 +510,28 @@ export default function ChapitasTab({ onOpenMyPet, onReplacementsChange }: Props
           })}
         </div>
         <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
-          {qrUnassigned.slice(0, 48).map((qr: any) => (
-            <div key={qr.id} title={qr.agrupacion_name ? `Reservada: ${qr.agrupacion_name}` : 'Pool general'}
-              className={cn('p-2 rounded-xl text-center', qr.agrupacion_id ? 'bg-violet-50 border border-violet-300' : 'bg-brand-bg')}>
-              <p className="text-xs font-mono font-bold text-brand-primary">{qr.code}</p>
-              {qr.agrupacion_name && <p className="text-[9px] text-violet-600 truncate">{qr.agrupacion_name}</p>}
-            </div>
-          ))}
+          {qrUnassigned.slice(0, 48).map((qr: any) => {
+            const tieneDiseno = qr.logo_path || qr.arc_text || qr.bottom_text;
+            const editable = !qr.printed_at;
+            return (
+              <button key={qr.id} type="button"
+                onClick={() => editable && setDesignModal(qr)}
+                disabled={!editable}
+                title={editable
+                  ? (tieneDiseno ? 'Diseño propio — click para editar' : 'Click para ponerle diseño propio')
+                  : 'Ya está impresa: el diseño quedó fijo'}
+                className={cn(
+                  'p-2 rounded-xl text-center transition-all',
+                  qr.agrupacion_id ? 'bg-violet-50 border border-violet-300' : 'bg-brand-bg',
+                  editable ? 'hover:border-brand-primary hover:shadow-sm cursor-pointer' : 'opacity-60 cursor-not-allowed'
+                )}>
+                <p className="text-xs font-mono font-bold text-brand-primary">{qr.code}</p>
+                {tieneDiseno && <span className="block text-[8px] text-brand-secondary font-bold">diseño propio</span>}
+                {qr.agrupacion_name && <p className="text-[9px] text-violet-600 truncate">{qr.agrupacion_name}</p>}
+                {!editable && <Lock className="w-2.5 h-2.5 mx-auto text-gray-400 mt-0.5" />}
+              </button>
+            );
+          })}
           {qrUnassigned.length > 48 && (
             <div className="p-2 bg-brand-bg rounded-xl text-center flex items-center justify-center">
               <p className="text-xs text-gray-400">+{qrUnassigned.length - 48}</p>
@@ -540,6 +587,64 @@ export default function ChapitasTab({ onOpenMyPet, onReplacementsChange }: Props
         </button>
       )}
     </div>
+
+    {/* ───── Diseño propio de una chapita ───── */}
+    <AnimatePresence>
+      {designModal && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" onClick={() => setDesignModal(null)}>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="absolute inset-0 bg-brand-primary/20 backdrop-blur-sm" />
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+            onClick={e => e.stopPropagation()}
+            className="relative w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl p-6 sm:p-8 max-h-[90vh] overflow-y-auto">
+            <button onClick={() => setDesignModal(null)} className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-full">
+              <X className="w-5 h-5 text-gray-400" />
+            </button>
+            <h3 className="text-lg font-bold text-brand-primary mb-1">Chapita {designModal.code}</h3>
+            <p className="text-xs text-gray-400 mb-5">
+              Todavía no está impresa, así que podés cambiarle el logo y las leyendas. Cuando se imprima, el diseño queda fijo.
+            </p>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Logo</label>
+                <select value={designForm.logo_path}
+                  onChange={e => setDesignForm({ ...designForm, logo_path: e.target.value })}
+                  className="w-full mt-1 px-3 py-2.5 bg-brand-bg rounded-xl border border-brand-accent text-xs outline-none">
+                  <option value="">Predeterminado</option>
+                  {logoOptions.filter((o: any) => !o.isDefault).map((o: any) => (
+                    <option key={o.path} value={o.path}>{o.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Texto arco</label>
+                <input type="text" value={designForm.arc_text} placeholder="(vacío = sin texto)"
+                  onChange={e => setDesignForm({ ...designForm, arc_text: e.target.value })}
+                  className="w-full mt-1 px-3 py-2.5 bg-brand-bg rounded-xl border border-brand-accent text-xs outline-none" />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Texto inferior</label>
+                <input type="text" value={designForm.bottom_text} placeholder="(vacío = sin texto)"
+                  onChange={e => setDesignForm({ ...designForm, bottom_text: e.target.value })}
+                  className="w-full mt-1 px-3 py-2.5 bg-brand-bg rounded-xl border border-brand-accent text-xs outline-none" />
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2 mt-6">
+              <button onClick={() => saveDesign(false)} disabled={designSaving}
+                className="flex-1 px-4 py-2.5 bg-brand-primary text-white rounded-xl font-bold text-xs hover:shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-1">
+                {designSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />} Guardar
+              </button>
+              <button onClick={() => saveDesign(true)} disabled={designSaving} title="Volver al diseño global"
+                className="px-4 py-2.5 border border-brand-accent rounded-xl font-bold text-xs text-gray-600 hover:bg-brand-bg transition-all disabled:opacity-50">
+                Usar diseño global
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
 
         </div>
       )}
