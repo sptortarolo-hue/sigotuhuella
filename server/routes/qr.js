@@ -173,7 +173,7 @@ router.post('/batch', requireAdmin, async (req, res) => {
 router.get('/unassigned', requireAdmin, async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT qi.id, qi.code, qi.share_token, qi.batch_id, qi.created_at, qi.agrupacion_id,
+      `SELECT qi.id, qi.code, qi.share_token, qi.batch_id, qi.created_at, qi.agrupacion_id, qi.printed_at,
               a.name AS agrupacion_name
        FROM qr_identifiers qi
        LEFT JOIN agrupaciones a ON a.id = qi.agrupacion_id
@@ -1709,6 +1709,9 @@ router.get('/:id/pdf', requireAdmin, async (req, res) => {
     const row = result.rows[0];
     const { code, share_token } = row;
 
+    // Queda marcada como impresa (idempotente: reimprimir no la "des-imprime")
+    await pool.query('UPDATE qr_identifiers SET printed_at = NOW() WHERE id = $1 AND printed_at IS NULL', [req.params.id]);
+
     const layout = await getLayout(req.query.page_w, req.query.page_h);
     const { MM_TO_PT, PAGE_W_PT, PAGE_H_PT, TAG_SIZE_PT, MARGIN_X_MM, MARGIN_Y_MM } = layout;
 
@@ -1746,6 +1749,13 @@ router.get('/batch/:batchId/pdf', requireAdmin, async (req, res) => {
     if (result.rows.length === 0) return res.status(404).json({ error: 'No hay QRs en el rango seleccionado' });
 
     const identifiers = result.rows;
+
+    // Estos códigos pasan a tener chapita física: quedan marcados como impresos
+    // (idempotente, reimprimir no los "des-imprime")
+    await pool.query(
+      'UPDATE qr_identifiers SET printed_at = NOW() WHERE code = ANY($1) AND printed_at IS NULL',
+      [identifiers.map(r => r.code)]
+    );
     const { MM_TO_PT, PAGE_W_PT, PAGE_H_PT, TAG_SIZE_PT, PAIRS_PER_ROW, ROWS_PER_PAGE, PER_PAGE, MARGIN_X_MM, MARGIN_Y_MM } = layout;
 
     const doc = new PDFDocument({ size: [PAGE_W_PT, PAGE_H_PT], margin: 0 });
@@ -1824,15 +1834,15 @@ router.post('/print-plan', requireAdmin, async (req, res) => {
       return res.status(400).json({ error: `Máximo ${PRINT_PLAN_MAX} chapitas por plan (pediste ${total})` });
     }
 
-    // Códigos libres, en orden de código
+    // Códigos que todavía no se imprimieron (evita reimprimir chapitas ya hechas)
     const free = await pool.query(
       `SELECT code, share_token FROM qr_identifiers
-       WHERE my_pet_id IS NULL AND COALESCE(retired, FALSE) = FALSE
+       WHERE my_pet_id IS NULL AND COALESCE(retired, FALSE) = FALSE AND printed_at IS NULL
        ORDER BY code ASC LIMIT $1`,
       [total]
     );
     if (free.rows.length < total) {
-      return res.status(400).json({ error: `Pediste ${total} chapitas y hay ${free.rows.length} sin asignar` });
+      return res.status(400).json({ error: `Pediste ${total} chapitas y hay ${free.rows.length} sin imprimir` });
     }
 
     // Reparte los códigos en orden y graba el diseño de cada uno
@@ -1845,7 +1855,9 @@ router.post('/print-plan', requireAdmin, async (req, res) => {
         offset += seg.count;
         for (const code of seg.codes) {
           await client.query(
-            'UPDATE qr_identifiers SET logo_path = $1, arc_text = $2, bottom_text = $3 WHERE code = $4',
+            `UPDATE qr_identifiers
+             SET logo_path = $1, arc_text = $2, bottom_text = $3, printed_at = NOW()
+             WHERE code = $4`,
             [seg.design.logo_path, seg.design.arc_text, seg.design.bottom_text, code.code]
           );
         }

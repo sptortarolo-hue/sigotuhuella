@@ -36,6 +36,7 @@ export default function ChapitaPrintPlanner({ className }: { className?: string 
   const [logoOptions, setLogoOptions] = useState<LogoOption[]>([]);
   const [settings, setSettings] = useState<any>(null);
   const [availableCodes, setAvailableCodes] = useState<string[]>([]);
+  const [alreadyPrinted, setAlreadyPrinted] = useState(0);
   const [perPage, setPerPage] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -52,8 +53,11 @@ export default function ChapitaPrintPlanner({ className }: { className?: string 
       setLogoOptions(options);
       setSettings(design);
       setPerPage(typeof layout?.PER_PAGE === 'number' ? layout.PER_PAGE : null);
-      const codes: string[] = (unassigned?.identifiers || []).map((q: any) => q.code).sort();
-      setAvailableCodes(codes);
+      const libres: any[] = unassigned?.identifiers || [];
+      // Solo se pueden asignar las que nunca se imprimieron: las que sobran de
+      // una impresión anterior ya tienen chapita física hecha.
+      setAvailableCodes(libres.filter((q: any) => !q.printed_at).map((q: any) => q.code).sort());
+      setAlreadyPrinted(libres.filter((q: any) => q.printed_at).length);
       const defaultLogo = options.find(o => o.isDefault)?.path ?? '';
       setRows(prev => (prev.length > 0 ? prev : [rowFromSettings(design, Date.now(), defaultLogo)]));
     } catch {
@@ -93,7 +97,7 @@ export default function ChapitaPrintPlanner({ className }: { className?: string 
   const handleGenerate = async () => {
     if (total === 0) { alert('Indicá la cantidad en al menos una fila'); return; }
     if (shortfall > 0) {
-      alert(`Pediste ${total} chapitas y hay ${availableCodes.length} sin asignar`);
+      alert(`Pediste ${total} chapitas y hay ${availableCodes.length} sin imprimir`);
       return;
     }
     setGenerating(true);
@@ -215,12 +219,23 @@ export default function ChapitaPrintPlanner({ className }: { className?: string 
         <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
           <span className="text-gray-500">Total: <strong className="text-brand-primary font-mono">{total}</strong> chapitas</span>
           {pages > 0 && <span className="text-gray-500">{pages} {pages === 1 ? 'página' : 'páginas'}</span>}
-          <span className="text-gray-500">Disponibles: <strong className="font-mono">{availableCodes.length}</strong></span>
+          <span className="text-gray-500">Sin imprimir: <strong className="font-mono">{availableCodes.length}</strong></span>
         </div>
         {shortfall > 0 && (
           <p className="text-xs text-red-600 flex items-center gap-1">
             <AlertCircle className="w-3 h-3 shrink-0" />
-            Faltan {shortfall} chapitas sin asignar para cubrir el plan.
+            Faltan {shortfall} chapitas sin imprimir para cubrir el plan.
+          </p>
+        )}
+        {alreadyPrinted > 0 && (
+          <p className="text-[10px] text-gray-400">
+            {alreadyPrinted} chapitas libres ya están impresas: tienen física hecha, así que se reimprimen
+            desde su lote y no se pueden volver a asignar. Si necesitás más, generá un lote nuevo.
+          </p>
+        )}
+        {availableCodes.length === 0 && (
+          <p className="text-[10px] text-amber-600">
+            No queda ninguna chapita sin imprimir. Usá «Generar lote» para crear códigos nuevos.
           </p>
         )}
         <p className="text-[10px] text-gray-400">

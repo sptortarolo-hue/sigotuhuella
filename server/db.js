@@ -1342,6 +1342,11 @@ export async function initDb() {
     await migrate(client, `
       ALTER TABLE qr_identifiers ADD COLUMN IF NOT EXISTS bottom_text TEXT
     `, 'qr_identifiers bottom_text');
+    // NULL = nunca se imprimio. Marca quien ya tiene chapita fisica hecha, para
+    // que la impresion combinada no vuelva a tomar esos codigos.
+    await migrate(client, `
+      ALTER TABLE qr_identifiers ADD COLUMN IF NOT EXISTS printed_at TIMESTAMP
+    `, 'qr_identifiers printed_at');
 
     await migrate(client, `
       ALTER TABLE whatsapp_groups ADD COLUMN IF NOT EXISTS type VARCHAR(20) DEFAULT 'group'
