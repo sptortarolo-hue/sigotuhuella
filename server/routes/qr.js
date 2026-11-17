@@ -26,6 +26,24 @@ function nextPrefix(prefix) {
   return chars.join('');
 }
 
+// Lista de códigos consecutivos empezando en `start` (incluido).
+// Devuelve null si el formato no es AAA-0001.
+function codesFrom(start, count) {
+  const m = /^([A-Z]{3})-(\d{4})$/.exec(String(start).toUpperCase());
+  if (!m) return null;
+  let prefix = m[1];
+  let num = parseInt(m[2], 10);
+  const out = [];
+  for (let i = 0; i < count; i++) {
+    if (i > 0) {
+      num += 1;
+      if (num > 9999) { num = 1; prefix = nextPrefix(prefix); }
+    }
+    out.push(`${prefix}-${String(num).padStart(4, '0')}`);
+  }
+  return out;
+}
+
 async function getNextCodes(count) {
   const last = await pool.query("SELECT code FROM qr_identifiers ORDER BY code DESC LIMIT 1");
   let prefix = 'AAA';
@@ -1142,8 +1160,9 @@ router.post('/assigned/:id/notify', requireAdmin, async (req, res) => {
 
 router.delete('/cleanup', requireAdmin, async (req, res) => {
   try {
-    // Las chapitas asignadas a una agrupación son definitivas: no se limpian
-    const result = await pool.query('DELETE FROM qr_identifiers WHERE my_pet_id IS NULL AND COALESCE(retired, FALSE) = FALSE AND agrupacion_id IS NULL');
+    // Solo se borran las que NUNCA se imprimieron: las que ya tienen chapa física
+    // (aunque estén sin asignar) son registro de material hecho y no se tocan.
+    const result = await pool.query('DELETE FROM qr_identifiers WHERE my_pet_id IS NULL AND COALESCE(retired, FALSE) = FALSE AND agrupacion_id IS NULL AND printed_at IS NULL');
     res.json({ success: true, deleted: result.rowCount });
   } catch (err) {
     console.error('qr cleanup error:', err);
@@ -1884,32 +1903,48 @@ router.post('/print-plan', requireAdmin, async (req, res) => {
       return res.status(400).json({ error: `Máximo ${PRINT_PLAN_MAX} chapitas por plan (pediste ${total})` });
     }
 
-    // Códigos que todavía no se imprimieron (evita reimprimir chapitas ya hechas)
-    const free = await pool.query(
-      `SELECT code, share_token FROM qr_identifiers
-       WHERE my_pet_id IS NULL AND COALESCE(retired, FALSE) = FALSE AND printed_at IS NULL
-       ORDER BY code ASC LIMIT $1`,
-      [total]
-    );
-    if (free.rows.length < total) {
-      return res.status(400).json({ error: `Pediste ${total} chapitas y hay ${free.rows.length} sin imprimir` });
+    // ── Los números de chapita nacen al imprimir ──
+    // "desde" manual, o por defecto el último código + 1. El "hasta" sale de la
+    // cantidad total. Si el rango se pisa con códigos existentes, se avisa.
+    let codes;
+    if (req.body?.desde) {
+      codes = codesFrom(req.body.desde, total);
+      if (!codes) {
+        return res.status(400).json({ error: 'El "desde" tiene formato inválido (esperado AAA-0001)' });
+      }
+    } else {
+      codes = await getNextCodes(total);
     }
 
-    // Reparte los códigos en orden y graba el diseño de cada uno
-    let offset = 0;
+    const lastCode = codes[codes.length - 1];
+    const existing = await pool.query(
+      'SELECT code FROM qr_identifiers WHERE code >= $1 AND code <= $2 LIMIT 1',
+      [codes[0], lastCode]
+    );
+    if (existing.rows.length > 0) {
+      return res.status(400).json({
+        error: `El rango ${codes[0]} → ${lastCode} se pisa con un código que ya existe (${existing.rows[0].code}). Elegí otro "desde".`,
+      });
+    }
+
+    // Crea los códigos con su diseño y la marca de impreso, y genera el PDF
+    const batchId = `print-${Date.now()}`;
+    const rows = [];
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+      let offset = 0;
       for (const seg of plan) {
-        seg.codes = free.rows.slice(offset, offset + seg.count);
+        seg.codes = codes.slice(offset, offset + seg.count).map(code => ({ code }));
         offset += seg.count;
         for (const code of seg.codes) {
-          await client.query(
-            `UPDATE qr_identifiers
-             SET logo_path = $1, arc_text = $2, bottom_text = $3, printed_at = NOW()
-             WHERE code = $4`,
-            [seg.design.logo_path, seg.design.arc_text, seg.design.bottom_text, code.code]
+          const token = uuidv4();
+          const insert = await client.query(
+            `INSERT INTO qr_identifiers (code, share_token, batch_id, logo_path, arc_text, bottom_text, printed_at)
+             VALUES ($1, $2, $3, $4, $5, $6, NOW()) RETURNING code, share_token`,
+            [code.code, token, batchId, seg.design.logo_path, seg.design.arc_text, seg.design.bottom_text]
           );
+          rows.push(insert.rows[0]);
         }
       }
       await client.query('COMMIT');
@@ -1924,13 +1959,21 @@ router.post('/print-plan', requireAdmin, async (req, res) => {
     const layout = await getLayout(req.body?.page_w, req.body?.page_h);
     const { MM_TO_PT, PAGE_W_PT, PAGE_H_PT, TAG_SIZE_PT, PAIRS_PER_ROW, PER_PAGE, MARGIN_X_MM, MARGIN_Y_MM } = layout;
     const globalDesign = await getChapitaSettings();
-    const items = plan.flatMap(seg =>
-      seg.codes.map(c => ({ ...c, design: mergeDesign(globalDesign, seg.design) }))
-    );
+    // Los códigos se insertaron en orden, así que `rows` mantiene el orden del plan
+    const items = [];
+    let rowIndex = 0;
+    for (const seg of plan) {
+      const design = mergeDesign(globalDesign, seg.design);
+      for (let i = 0; i < seg.count; i++) {
+        const inserted = rows[rowIndex++];
+        items.push({ code: inserted.code, share_token: inserted.share_token, design });
+      }
+    }
 
     const doc = new PDFDocument({ size: [PAGE_W_PT, PAGE_H_PT], margin: 0 });
     res.set('Content-Type', 'application/pdf');
-    res.set('Content-Disposition', `attachment; filename="plan-${Date.now()}.pdf"`);
+    res.set('Content-Disposition', `attachment; filename="plan-${batchId}.pdf"`);
+    res.set('X-Plan-Range', `${codes[0]}-${lastCode}`);
     doc.pipe(res);
 
     for (let pageStart = 0; pageStart < items.length; pageStart += PER_PAGE) {

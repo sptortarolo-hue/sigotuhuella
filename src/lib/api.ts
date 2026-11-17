@@ -552,6 +552,7 @@ export const api = {
     // Impresión combinada: una plancha con varias combinaciones logo + leyendas.
     // Devuelve el PDF; si el server rechaza (ej. faltan códigos) tira el error.
     printPlan: (plan: {
+      desde?: string;
       segments: Array<{ logo_path: string | null; arc_text: string | null; bottom_text: string | null; count: number }>;
       page_w?: string; page_h?: string;
     }) => {

@@ -301,8 +301,8 @@ export default function ChapitasTab({ onOpenMyPet, onReplacementsChange }: Props
   const impresasLibres = qrUnassigned.length - sinImprimir;
 
   const CHIPS = [
-    { label: 'Sin imprimir', value: sinImprimir, color: sinImprimir > 0 ? 'text-brand-primary' : 'text-gray-600', go: 'stock' as Section },
-    { label: 'Impresas libres', value: impresasLibres, color: 'text-gray-600', go: 'stock' as Section },
+    { label: 'Libres sin asignar', value: impresasLibres, color: impresasLibres > 0 ? 'text-brand-primary' : 'text-gray-600', go: 'stock' as Section },
+    { label: 'Sin imprimir', value: sinImprimir, color: sinImprimir > 0 ? 'text-amber-600' : 'text-gray-600', go: 'stock' as Section },
     { label: 'Asignadas', value: qrAssignedTotal, color: 'text-gray-600', go: 'gestion' as Section },
     { label: 'Solicitudes', value: solicitudesPendientes, color: solicitudesPendientes > 0 ? 'text-amber-600' : 'text-gray-600', go: 'gestion' as Section },
     { label: 'Reposiciones', value: qrReplacements.length, color: qrReplacements.length > 0 ? 'text-amber-600' : 'text-gray-600', go: 'gestion' as Section },
@@ -414,7 +414,13 @@ export default function ChapitasTab({ onOpenMyPet, onReplacementsChange }: Props
 {section === 'stock' && (
         <div className="space-y-6">
 
-    <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
+    {/* Avanzado: crear códigos SIN imprimirlos. El flujo normal es imprimir,
+        que crea los números solo.queda acá por si hace falta alguna vez. */}
+    <details className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
+      <summary className="text-sm font-bold text-gray-500 cursor-pointer hover:text-brand-primary select-none">
+        Avanzado: generar códigos sin imprimir
+      </summary>
+      <div className="mt-5">
       <h3 className="text-lg font-bold text-brand-primary mb-4 flex items-center gap-2">
         <QrCode className="w-5 h-5" /> Generar lote de QRs
       </h3>
@@ -454,11 +460,12 @@ export default function ChapitasTab({ onOpenMyPet, onReplacementsChange }: Props
           </p>
         ) : null;
       })()}
-    </div>
+      </div>
+    </details>
 
     {qrUnassigned.length > 0 && (
       <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
-        <h3 className="text-lg font-bold text-brand-primary mb-2">Códigos libres ({qrUnassigned.length})</h3>
+        <h3 className="text-lg font-bold text-brand-primary mb-2">Chapitas impresas, sin asignar ({qrUnassigned.length})</h3>
         {qrUnassigned.some((q: any) => q.agrupacion_id) && (
           <p className="text-xs text-violet-600 mb-4">
             {qrUnassigned.filter((q: any) => q.agrupacion_id).length} chapitas reservadas para agrupaciones (en violeta) — las gestiona su coordinador desde el tab Chapitas Agrup.
@@ -583,7 +590,7 @@ export default function ChapitasTab({ onOpenMyPet, onReplacementsChange }: Props
       ) : (
         <button onClick={() => setCleanupOpen(true)}
           className="px-6 py-3 bg-red-50 text-red-600 rounded-xl font-bold text-sm hover:bg-red-100 transition-all flex items-center gap-2">
-          <Trash2 className="w-4 h-4" /> Limpiar no asignados ({qrUnassigned.length})
+          <Trash2 className="w-4 h-4" /> Borrar sin imprimir ({sinImprimir})
         </button>
       )}
     </div>

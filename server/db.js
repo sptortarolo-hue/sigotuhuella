@@ -1347,6 +1347,21 @@ export async function initDb() {
     await migrate(client, `
       ALTER TABLE qr_identifiers ADD COLUMN IF NOT EXISTS printed_at TIMESTAMP
     `, 'qr_identifiers printed_at');
+    // Los numeros de chapita nacen al imprimir: todo codigo que ya existia tiene
+    // chapa fisica hecha. Se marca una sola vez (guard en settings) para no
+    // volver a tocar codigos que se creen sin imprimir mas adelante.
+    try {
+      const backfillDone = await client.query("SELECT 1 FROM settings WHERE key = 'chapita_printed_backfill'");
+      if (backfillDone.rows.length === 0) {
+        const marked = await client.query('UPDATE qr_identifiers SET printed_at = NOW() WHERE printed_at IS NULL');
+        console.log(`[MIGRATION] chapitas existentes marcadas como impresas: ${marked.rowCount}`);
+        await client.query(
+          "INSERT INTO settings (key, value) VALUES ('chapita_printed_backfill', NOW()::text) ON CONFLICT (key) DO NOTHING"
+        );
+      }
+    } catch (err) {
+      console.warn(`[MIGRATION] chapita printed backfill skipped: ${err.message}`);
+    }
 
     await migrate(client, `
       ALTER TABLE whatsapp_groups ADD COLUMN IF NOT EXISTS type VARCHAR(20) DEFAULT 'group'

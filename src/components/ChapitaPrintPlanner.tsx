@@ -31,34 +31,58 @@ function parseCount(value: string): number {
   return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
+// Siguiente código después de `code` (misma lógica que el server)
+function nextCode(code: string): string {
+  const m = /^([A-Z]{3})-(\d{4})$/.exec(code.toUpperCase());
+  if (!m) return code;
+  let prefix = m[1];
+  let num = parseInt(m[2], 10) + 1;
+  if (num > 9999) {
+    num = 1;
+    const chars = prefix.split('');
+    let i = chars.length - 1;
+    while (i >= 0) {
+      if (chars[i] < 'Z') { chars[i] = String.fromCharCode(chars[i].charCodeAt(0) + 1); break; }
+      chars[i] = 'A';
+      i--;
+    }
+    prefix = chars.join('');
+  }
+  return `${prefix}-${String(num).padStart(4, '0')}`;
+}
+
+// Avanza `offset` códigos desde `start` (para calcular el "hasta")
+function advanceTo(start: string, offset: number): string {
+  let code = start;
+  for (let i = 0; i < offset; i++) code = nextCode(code);
+  return code;
+}
+
 export default function ChapitaPrintPlanner({ className }: { className?: string }) {
   const [rows, setRows] = useState<Row[]>([]);
   const [logoOptions, setLogoOptions] = useState<LogoOption[]>([]);
   const [settings, setSettings] = useState<any>(null);
-  const [availableCodes, setAvailableCodes] = useState<string[]>([]);
-  const [alreadyPrinted, setAlreadyPrinted] = useState(0);
+  const [lastCode, setLastCode] = useState<string | null>(null);
+  const [desde, setDesde] = useState('');
   const [perPage, setPerPage] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const [logoData, design, layout, unassigned] = await Promise.all([
+      const [logoData, design, layout, last] = await Promise.all([
         api.qr.logoOptions(),
         api.qr.designSettings(),
         api.qr.layout('', ''),
-        api.qr.unassigned(),
+        api.qr.lastCode(),
       ]);
       const options: LogoOption[] = Array.isArray(logoData?.options) ? logoData.options : [];
       setLogoOptions(options);
       setSettings(design);
       setPerPage(typeof layout?.PER_PAGE === 'number' ? layout.PER_PAGE : null);
-      const libres: any[] = unassigned?.identifiers || [];
-      // Solo se pueden asignar las que nunca se imprimieron: las que sobran de
-      // una impresión anterior ya tienen chapita física hecha.
-      setAvailableCodes(libres.filter((q: any) => !q.printed_at).map((q: any) => q.code).sort());
-      setAlreadyPrinted(libres.filter((q: any) => q.printed_at).length);
+      setLastCode(last?.code || null);
       const defaultLogo = options.find(o => o.isDefault)?.path ?? '';
+      setDesde(prev => (prev || (last?.code ? nextCode(last.code) : 'AAA-0001')));
       setRows(prev => (prev.length > 0 ? prev : [rowFromSettings(design, Date.now(), defaultLogo)]));
     } catch {
       // si falla la carga, el panel sigue viéndose con las filas vacías
@@ -70,19 +94,20 @@ export default function ChapitaPrintPlanner({ className }: { className?: string 
 
   const total = useMemo(() => rows.reduce((acc, r) => acc + parseCount(r.count), 0), [rows]);
   const pages = perPage && total > 0 ? Math.ceil(total / perPage) : 0;
-  const shortfall = Math.max(0, total - availableCodes.length);
+  const desdeValido = /^[A-Za-z]{3}-\d{4}$/.test(desde.trim());
+  const hasta = desdeValido && total > 0 ? advanceTo(desde.trim().toUpperCase(), total - 1) : '—';
 
-  // Mapeo de códigos por fila (el server los toma en este mismo orden)
+  // Mapeo de códigos por fila, en orden
   const ranges = useMemo(() => {
     let offset = 0;
     return rows.map(r => {
       const count = parseCount(r.count);
-      const from = availableCodes[offset];
-      const to = availableCodes[Math.min(offset + Math.max(count, 1) - 1, availableCodes.length - 1)];
+      const from = desdeValido ? advanceTo(desde.trim().toUpperCase(), offset) : null;
       offset += count;
+      const to = count > 0 && desdeValido ? advanceTo(desde.trim().toUpperCase(), offset - 1) : null;
       return { count, from, to };
     });
-  }, [rows, availableCodes]);
+  }, [rows, desde, desdeValido]);
 
   const addRow = () => {
     const defaultLogo = logoOptions.find(o => o.isDefault)?.path ?? '';
@@ -96,13 +121,11 @@ export default function ChapitaPrintPlanner({ className }: { className?: string 
 
   const handleGenerate = async () => {
     if (total === 0) { alert('Indicá la cantidad en al menos una fila'); return; }
-    if (shortfall > 0) {
-      alert(`Pediste ${total} chapitas y hay ${availableCodes.length} sin imprimir`);
-      return;
-    }
+    if (!desdeValido) { alert('El código "desde" tiene formato inválido (esperado AAA-0001)'); return; }
     setGenerating(true);
     try {
       await api.qr.printPlan({
+        desde: desde.trim().toUpperCase(),
         segments: rows.map(r => ({
           logo_path: r.logo_path || null,
           arc_text: r.arc_text,
@@ -131,9 +154,35 @@ export default function ChapitaPrintPlanner({ className }: { className?: string 
         <Layers className="w-5 h-5" /> Impresión combinada
       </h3>
       <p className="text-xs text-gray-400 mb-6">
-        Armá una sola plancha con distintas combinaciones de logo y leyendas. Se toman los próximos códigos
-        sin asignar, en orden, y el diseño queda grabado en cada chapita.
+        Armá una sola plancha con distintas combinaciones de logo y leyendas. Los números se crean al imprimir:
+        arrancan en el <strong>Desde</strong> y el <strong>Hasta</strong> sale de la cantidad total. Cada chapita
+        queda grabada con el diseño de su fila.
       </p>
+
+      {/* ───── Rango a imprimir ───── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+        <div>
+          <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Desde</label>
+          <input type="text" value={desde} onChange={e => setDesde(e.target.value.toUpperCase())}
+            placeholder="AAA-0001"
+            className={cn(
+              'w-full mt-1 px-3 py-2.5 bg-brand-bg rounded-xl border text-xs font-mono font-bold text-brand-primary outline-none',
+              desdeValido ? 'border-brand-accent' : 'border-red-300'
+            )} />
+          {lastCode && (
+            <button type="button" onClick={() => setDesde(nextCode(lastCode))}
+              className="mt-1 text-[10px] text-brand-primary hover:underline">
+                Usar último + 1 ({nextCode(lastCode)})
+            </button>
+          )}
+        </div>
+        <div>
+          <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Hasta</label>
+          <p className="mt-1 px-3 py-2.5 bg-gray-50 rounded-xl border border-brand-accent text-xs font-mono font-bold text-gray-500">
+            {hasta}
+          </p>
+        </div>
+      </div>
 
       <div className="space-y-4">
         {rows.map((row, index) => {
@@ -219,23 +268,14 @@ export default function ChapitaPrintPlanner({ className }: { className?: string 
         <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
           <span className="text-gray-500">Total: <strong className="text-brand-primary font-mono">{total}</strong> chapitas</span>
           {pages > 0 && <span className="text-gray-500">{pages} {pages === 1 ? 'página' : 'páginas'}</span>}
-          <span className="text-gray-500">Sin imprimir: <strong className="font-mono">{availableCodes.length}</strong></span>
+          <span className="text-gray-500">
+            Códigos: <strong className="font-mono">{desdeValido ? desde.trim().toUpperCase() : '—'} → {hasta}</strong>
+          </span>
         </div>
-        {shortfall > 0 && (
+        {!desdeValido && (
           <p className="text-xs text-red-600 flex items-center gap-1">
             <AlertCircle className="w-3 h-3 shrink-0" />
-            Faltan {shortfall} chapitas sin imprimir para cubrir el plan.
-          </p>
-        )}
-        {alreadyPrinted > 0 && (
-          <p className="text-[10px] text-gray-400">
-            {alreadyPrinted} chapitas libres ya están impresas: tienen física hecha, así que se reimprimen
-            desde su lote y no se pueden volver a asignar. Si necesitás más, generá un lote nuevo.
-          </p>
-        )}
-        {availableCodes.length === 0 && (
-          <p className="text-[10px] text-amber-600">
-            No queda ninguna chapita sin imprimir. Usá «Generar lote» para crear códigos nuevos.
+            El "desde" debe tener formato AAA-0001.
           </p>
         )}
         <p className="text-[10px] text-gray-400">
@@ -244,7 +284,7 @@ export default function ChapitaPrintPlanner({ className }: { className?: string 
         </p>
       </div>
 
-      <button type="button" onClick={handleGenerate} disabled={generating || total === 0 || shortfall > 0}
+      <button type="button" onClick={handleGenerate} disabled={generating || total === 0 || !desdeValido}
         className="mt-4 px-6 py-3 bg-brand-primary text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all flex items-center gap-2 disabled:opacity-50">
         {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
         Generar PDF
